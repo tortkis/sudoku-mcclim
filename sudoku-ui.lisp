@@ -41,18 +41,22 @@
       (setf *tile-images* '())
       (dotimes (idx (length tile-image-names))
         (multiple-value-bind (array design)
-            (climi::xpm-parse-file (make-pathname
-                                    :directory `(:relative "images" ,theme)
-                                    :name (nth idx tile-image-names)
-                                    :type "xpm"))
+            (climi::xpm-parse-file (merge-pathnames
+                                    (make-pathname
+                                     :directory `(:relative ,theme)
+                                     :name (nth idx tile-image-names)
+                                     :type "xpm")
+                                    sudoku.system::*images-path*))
           (push (list idx array design) *tile-images*))))
     (when msg-image-names
       (dolist (msg-name msg-image-names)
         (multiple-value-bind (array design)
-            (climi::xpm-parse-file (make-pathname
-                                    :directory `(:relative "images" ,theme)
-                                    :name msg-name
-                                    :type "xpm"))
+            (climi::xpm-parse-file (merge-pathnames
+                                    (make-pathname
+                                     :directory `(:relative ,theme)
+                                     :name msg-name
+                                     :type "xpm")
+                                    sudoku.system::*images-path*))
           (push (list msg-name array design) *msg-images*))))))
 
 ;;
@@ -512,7 +516,6 @@
   (setf *game-output-record-board* nil)
   (setf *game-output-record-tile-board* nil)
   (setf *selected-cell* nil)
-  (load-images "shape1")
   (setf *use-tile* t)
   (setf *selected-input-val* nil)
   (setf *game-record* (load-sudoku-game-record *sudoku-record-file*))
@@ -525,5 +528,8 @@
       (setf (frame-current-layout *sudoku-frame*) 'debug)
       (setf (frame-current-layout *sudoku-frame*) 'default))
   (run-frame-top-level *sudoku-frame*))
+
+(eval-when (:load-toplevel)
+  (load-images "shape1"))
 
 

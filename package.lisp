@@ -13,4 +13,4 @@
    :empty-cell))
 
 (defpackage :sudoku-mcclim
-  (:use :clim :clim-lisp :clim-internals :sudoku))
+  (:use :clim :clim-lisp :clim-internals :sudoku :sudoku.system))

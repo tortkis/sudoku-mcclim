@@ -2,7 +2,9 @@
 (in-package :cl-user)
 
 (defpackage :sudoku.system
-  (:use :cl :asdf))
+  (:use :cl :asdf)
+  (:export
+   :*images-path*))
 
 (in-package :sudoku.system)
 
@@ -14,3 +16,5 @@
                (:file "sudoku" :depends-on ("package"))
                (:file "sudoku-control" :depends-on ("package" "sudoku"))
                (:file "sudoku-ui" :depends-on ("package" "sudoku" "sudoku-control"))))
+
+(defvar *images-path* (asdf:system-relative-pathname 'sudoku-mcclim "images/"))
