@@ -59,7 +59,7 @@
                                     sudoku.system::*images-path*))
           (push (list msg-name array design) *msg-images*))))))
 
-;;
+;; functions
 
 (defmacro debug-msg (format &rest args)
   `(when *debug-output-p*
@@ -70,45 +70,6 @@
   (make-rgb-color (/ (truncate (/ rgb (expt #X100 2))) #XFF)
                   (/ (mod (truncate (/ rgb #X100)) #X100) #XFF)
                   (/ (mod rgb #X100) #XFF)))
-
-(defclass sudoku-board-pane (application-pane) ())
-
-(defclass debug-display-pane (clim-stream-pane) ())
-
-(define-application-frame sudoku-frame ()
-  ()
-  (:menu-bar menubar-command-table)
-  (:panes
-   (sudoku-pane (make-pane 'sudoku-board-pane
-                           :background (rgb-color #X4682b4)
-                           :display-time nil
-                           :display-function 'init-sudoku))
-                           ;;:display-function 'display-sudoku-pane
-                           ;;:incremental-redisplay '(t :check-overlapping t)))
-   (sudoku-debug-pane (make-pane 'debug-display-pane
-                                 :display-time nil)))
-  (:layouts
-   (default
-       (vertically (:height (+ (* *board-margin* 5) (* (/ 4 4) *board-size*)
-                               (* (/ 1 4) *board-size*))
-                    :width (+ (* *board-margin* 4) *board-size*))
-         (+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
-   (debug
-       (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
-                               (* (/ 1 4) *board-size*)))
-                    :width (+ (* *board-margin* 4) *board-size*))
-         (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
-         (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane)))))
-
-(defclass cell ()
-  ((row :accessor row :initarg :row)
-   (col :accessor col :initarg :col)
-   (val :accessor val :initarg :val))
-  (:default-initargs :val 0))
-
-(defclass cell-fixed (cell) ())
-
-(defclass cell-blank (cell) ())
 
 (defun coordinates-to-rowcol (x y)
   (let ((game (car (rec-playing *game-record*))))
@@ -122,6 +83,82 @@
 
 (defun mask-p (row col)
   (> (aref (mask (car (rec-playing *game-record*))) row col) 0))
+
+(defun erase-all-outputs ()
+  (let ((str (get-frame-pane *sudoku-frame* 'sudoku-pane)))
+    (mapc #'(lambda (x) (erase-output-record (second x) str nil))
+          *game-output-record-cells*)
+    (setf *game-output-record-cells* nil)
+    (dolist (rec (list *game-output-record*
+                       *game-output-record-board*
+                       *game-output-record-tile-board*))
+      (when (output-record-p rec)
+        (erase-output-record rec str nil)))))
+
+;; classes
+
+(defclass sudoku-board-pane (application-pane) ())
+
+(defclass debug-display-pane (clim-stream-pane) ())
+
+(defclass cell ()
+  ((row :accessor row :initarg :row)
+   (col :accessor col :initarg :col)
+   (val :accessor val :initarg :val))
+  (:default-initargs :val 0))
+
+(defclass cell-fixed (cell) ())
+
+(defclass cell-blank (cell) ())
+
+(defclass tile ()
+  ((val :accessor val :initarg :val)
+   (x :accessor x :initarg :x)
+   (y :accessor y :initarg :y)))
+
+;; panes
+
+(define-application-frame sudoku-frame ()
+  ()
+  (:menu-bar menubar-command-table)
+  (:panes
+   (sudoku-pane (make-pane 'sudoku-board-pane
+                           :background (rgb-color #X4682b4)
+                           :display-time nil
+                           :display-function 'init-sudoku))
+   (sudoku-debug-pane (make-pane 'debug-display-pane
+                                 :display-time nil)))
+  (:layouts
+   (default
+       (vertically (:height (+ (* *board-margin* 5) (* (/ 4 4) *board-size*)
+                               (* (/ 1 4) *board-size*))
+                    :width (+ (* *board-margin* 4) *board-size*))
+         (+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
+   (debug
+       (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
+                               (* (/ 1 4) *board-size*))
+                    :width (+ (* *board-margin* 4) *board-size*))
+         (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
+         (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
+
+;; display
+
+(defun draw-tile (val x y &optional (in-tile-sel nil))
+  (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
+         (img (cdr (assoc (1- val) *tile-images*)))
+         (img-array (first img))
+         (img-design (second img))) 
+    (draw-rectangle* *standard-output*
+                     (+ x *cell-gap*)
+                     (+ y *cell-gap*)
+                     (+ x (- cell-size *cell-gap*))
+                     (+ y (- cell-size *cell-gap*))
+                     :filled (if (and in-tile-sel (eql val *selected-input-val*)) t nil)
+                     :ink (if (and in-tile-sel (eql val *selected-input-val*)) +blue+ nil))
+    (draw-pattern* *standard-output*
+                   (make-pattern img-array img-design)
+                   (+ x (* 0.5 (- cell-size (array-dimension img-array 1))))
+                   (+ y (* 0.5 (- cell-size (array-dimension img-array 0)))))))
 
 (defun make-cell (row col &optional err)
   (let* ((game (car (rec-playing *game-record*)))
@@ -146,7 +183,7 @@
                                 (= col (second *selected-cell*)))
                            (if (mask-p row col) +white+ (rgb-color #X40e0d0)))
                           (t (if (mask-p row col)
-                                 +gray80+ ; (rgb-color #X40e0d0)
+                                 (rgb-color #X4682b4) ; +gray80+ ; (rgb-color #X40e0d0)
                                  (rgb-color #X00ced1)))))
               (when (> val 0)
                 (if *use-tile*
@@ -161,28 +198,24 @@
                                 :ink (if (mask-p row col) +blue+ +black+))))))))
     (push (list (list row col) rec) *game-output-record-cells*)))
 
-(defclass tile ()
-  ((val :accessor val :initarg :val)
-   (x :accessor x :initarg :x)
-   (y :accessor y :initarg :y)))
+(defun erase-cell (row col)
+  (let ((new-rec '()))
+    (mapc #'(lambda (x)
+              (let ((pos (first x)))
+                (if (and (= (first pos) row) (= (second pos) col))
+                    (erase-output-record (second x)
+                                         (get-frame-pane *sudoku-frame* 'sudoku-pane) nil)
+                    (push x new-rec))))
+          *game-output-record-cells*)
+    (setf *game-output-record-cells* new-rec)))
 
-(defun draw-tile (val x y &optional (in-tile-sel nil))
-  (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
-         (img (cdr (assoc (1- val) *tile-images*)))
-         (img-array (first img))
-         (img-design (second img))) 
-    (draw-rectangle* *standard-output*
-                     (+ x *cell-gap*)
-                     (+ y *cell-gap*)
-                     (+ x (- cell-size *cell-gap*))
-                     (+ y (- cell-size *cell-gap*))
-                     :filled (if (and in-tile-sel (eql val *selected-input-val*)) t nil)
-                     :ink (if (and in-tile-sel (eql val *selected-input-val*)) +red+ nil))
-    (draw-pattern* *standard-output*
-                   (make-pattern img-array img-design)
-                   (+ x (* 0.5 (- cell-size (array-dimension img-array 1))))
-                   (+ y (* 0.5 (- cell-size (array-dimension img-array 0)))))))
-
+(defun redraw-cells-all ()
+  (let ((game (car (rec-playing *game-record*))))
+    (dotimes (row (size game))
+      (dotimes (col (size game))
+        (erase-cell row col)
+        (make-cell row col)))))
+  
 (defun make-tile (val)
   (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
          (x (+ *board-margin*  (* (1- val) cell-size)))
@@ -203,23 +236,63 @@
                         (+ x (/ cell-size 2))
                         (+ y (/ cell-size 2))
                         :align-x :center :align-y :center
+                        :ink (if (eql val *selected-input-val*) +blue+ +black+)
                         :text-size (truncate (/ cell-size 2))))))))
 
 (defun make-tile-all ()
-  (when *game-output-record-tile-board*
+  (when (output-record-p *game-output-record-tile-board*)
     (erase-output-record *game-output-record-tile-board* *standard-output* nil))
   (setf *game-output-record-tile-board*
-        (updating-output (*standard-output*)
+        (with-new-output-record (*standard-output*)
           (dotimes (i (size (car (rec-playing *game-record*))))
             (make-tile (1+ i))))))
+
+(defmethod display-sudoku-board ((frame sudoku-frame) stream)
+  (let* ((game (car (rec-playing *game-record*)))
+        (cell-size (/ *board-size* (size game))))
+    (when (output-record-p *game-output-record-board*)
+      (erase-output-record *game-output-record-board* stream nil))
+    (setf *game-output-record-board* 
+          (with-new-output-record (stream)
+            (dotimes (i (1+ (size game)))
+              (let ((x1 *board-margin*)
+                    (x2 (+ *board-margin* (* i cell-size)))
+                    (x3 (+ *board-margin* (* (size game) cell-size)))
+                    (th-h (if (zerop (mod i (nr game))) 5 1))
+                    (th-v (if (zerop (mod i (nc game))) 5 1)))
+                (draw-line* stream x1 x2 x3 x2 :line-thickness th-h)
+                (draw-line* stream x2 x1 x2 x3 :line-thickness th-v)))
+            (with-translation (stream 0 (+ *board-margin*
+                                           ;;(* (size game) cell-size)
+                                           ;;(/ *board-size* 4 2)
+                                           (* *board-size* (+ 1 (/ 1 4 2)))
+                                           (- (/ cell-size 2))))
+              (draw-line* stream
+                          *board-margin* *board-margin*
+                          (+ *board-margin* (* (size game) cell-size))
+                          *board-margin*
+                          :line-thickness 3)
+              (draw-line* stream
+                          *board-margin* (+ *board-margin* cell-size)
+                          (+ *board-margin* (* (size game) cell-size))
+                          (+ *board-margin* cell-size)
+                          :line-thickness 3)
+              (dotimes (i (1+ (size game)))
+                (let ((x1 *board-margin*)
+                      (x2 (+ *board-margin* (* i cell-size)))
+                      (x3 (+ *board-margin* cell-size)))
+                  (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
+
+;; actions
 
 (define-sudoku-frame-command (com-sel-tile)
     ((tile 'tile)
      (x 'real) (y 'real))
   (declare (ignore x y))
-  (if (eql *selected-input-val* (val tile))
-      (setf *selected-input-val* nil)
-      (setf *selected-input-val* (val tile)))
+  ;;(if (eql *selected-input-val* (val tile))
+  ;;    (setf *selected-input-val* nil)
+  ;;    (setf *selected-input-val* (val tile)))
+  (setf *selected-input-val* (val tile))
   (make-tile-all))
 
 (define-presentation-to-command-translator translator-dnd-tile
@@ -246,24 +319,6 @@
     (make-cell row col)
     (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
     
-(defun redraw-cells-all ()
-  (let ((game (car (rec-playing *game-record*))))
-    (dotimes (row (size game))
-      (dotimes (col (size game))
-        (erase-cell row col)
-        (make-cell row col)))))
-  
-(defun erase-cell (row col)
-  (let ((new-rec '()))
-    (mapc #'(lambda (x)
-              (let ((pos (first x)))
-                (if (and (= (first pos) row) (= (second pos) col))
-                    (erase-output-record (second x)
-                                         (get-frame-pane *sudoku-frame* 'sudoku-pane) nil)
-                    (push x new-rec))))
-          *game-output-record-cells*)
-    (setf *game-output-record-cells* new-rec)))
-
 (define-presentation-to-command-translator translator-click-cell
     (cell-blank com-click-cell sudoku-frame)
     (object x y)
@@ -300,8 +355,8 @@
            (setf playing (car (rec-playing *game-record*)))))
     (unless (<= (size playing) 4)
       (setf *use-tile* nil))
-    (display-sudoku-pane *sudoku-frame* stream)
-    (when *game-output-record*
+    (display-sudoku-board *sudoku-frame* stream)
+    (when (output-record-p *game-output-record*)
       (erase-output-record *game-output-record* stream nil))
     (mapc #'(lambda (x) (erase-output-record (second x) stream nil))
           *game-output-record-cells*)
@@ -336,6 +391,12 @@
          (rec nil))
     (debug-msg "~A~%" (table game))
     (debug-msg "[CHECK] ~A~%" chk)
+    (when (listp chk)
+      (redraw-cells-all)
+      (mapc #'(lambda (rc) (let ((r (first rc)) (c (second rc)))
+                             (erase-cell r c)
+                             (make-cell r c t)))
+            (car chk)))
     (let* ((msg-img (assoc (if (and (symbolp chk)
                                     (equal (symbol-name chk) "CORRECT"))
                                "msg-correct"
@@ -354,14 +415,11 @@
                                       *board-size*
                                       (/ *board-size* 4 2)
                                       (- (/ (array-dimension img-array 0) 2))))))))
-    (when (listp chk)
-      (redraw-cells-all)
-      (mapc #'(lambda (rc) (let ((r (first rc)) (c (second rc)))
-                             (erase-cell r c)
-                             (make-cell r c t)))
-            (car chk)))
-    (stream-input-wait *standard-input*)
-    (when rec
+    (notify-user *sudoku-frame* (if (and (symbolp chk)
+                                         (equal (symbol-name chk) "CORRECT"))
+                               "CORRECT!"
+                               "INCORRECT"))
+    (when (output-record-p rec)
       (erase-output-record rec *standard-output* nil))
     (redraw-cells-all)))
 
@@ -371,10 +429,10 @@
   (setf (nr *game-record*) nr)
   (setf (nc *game-record*) nc)
   (setf *selected-input-val* nil)
-  (when *game-output-record-tile-board*
-    (erase-output-record *game-output-record-tile-board* *standard-output* nil))
   (unless (<= (* nr nc) 4)
-    (setf *use-tile* nil)))
+    (setf *use-tile* nil))
+  (erase-all-outputs)
+  (com-start))
 
 (define-sudoku-frame-command com-level
     ((level 'interger
@@ -420,7 +478,7 @@
 (make-command-table 'style-command-table
                    :errorp nil
                    :menu '(("Number" :command (com-style 1))
-                           ("Cartoon" :command (com-style 2))))
+                           ("Image" :command (com-style 2))))
 
 (make-command-table 'menubar-command-table
                     :errorp nil
@@ -470,42 +528,6 @@
                 (make-cell prev-row prev-col)
                 (erase-cell row col)
                 (make-cell row col))))))))
-
-(defmethod display-sudoku-pane ((frame sudoku-frame) stream)
-  (let* ((game (car (rec-playing *game-record*)))
-        (cell-size (/ *board-size* (size game))))
-    (when *game-output-record-board*
-      (erase-output-record *game-output-record-board* stream nil))
-    (setf *game-output-record-board* 
-          (with-new-output-record (stream)
-            (dotimes (i (1+ (size game)))
-              (let ((x1 *board-margin*)
-                    (x2 (+ *board-margin* (* i cell-size)))
-                    (x3 (+ *board-margin* (* (size game) cell-size)))
-                    (th-h (if (zerop (mod i (nr game))) 5 1))
-                    (th-v (if (zerop (mod i (nc game))) 5 1)))
-                (draw-line* stream x1 x2 x3 x2 :line-thickness th-h)
-                (draw-line* stream x2 x1 x2 x3 :line-thickness th-v)))
-            (with-translation (stream 0 (+ *board-margin*
-                                           ;;(* (size game) cell-size)
-                                           ;;(/ *board-size* 4 2)
-                                           (* *board-size* (+ 1 (/ 1 4 2)))
-                                           (- (/ cell-size 2))))
-              (draw-line* stream
-                          *board-margin* *board-margin*
-                          (+ *board-margin* (* (size game) cell-size))
-                          *board-margin*
-                          :line-thickness 3)
-              (draw-line* stream
-                          *board-margin* (+ *board-margin* cell-size)
-                          (+ *board-margin* (* (size game) cell-size))
-                          (+ *board-margin* cell-size)
-                          :line-thickness 3)
-              (dotimes (i (1+ (size game)))
-                (let ((x1 *board-margin*)
-                      (x2 (+ *board-margin* (* i cell-size)))
-                      (x3 (+ *board-margin* cell-size)))
-                  (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
 
 (defmethod init-sudoku ((frame sudoku-frame) stream)
   (com-start :fresh nil))
