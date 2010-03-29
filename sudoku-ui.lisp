@@ -14,6 +14,7 @@
 (defparameter *board-size* 500)
 (defparameter *board-margin* 20)
 (defparameter *cell-gap* 5)
+(defparameter *info-height* 25)
 (defvar *game-output-record* nil)
 (defvar *game-output-record-cells* nil) ; list of ((row col) record)
 (defvar *game-output-record-board* nil)
@@ -98,7 +99,7 @@
 ;; classes
 
 (defclass sudoku-board-pane (application-pane) ())
-
+(defclass sudoku-info-pane (clim-stream-pane) ())
 (defclass debug-display-pane (clim-stream-pane) ())
 
 (defclass cell ()
@@ -126,18 +127,25 @@
                            :background (rgb-color #X4682b4)
                            :display-time nil
                            :display-function 'init-sudoku))
+   (info-pane (make-pane 'sudoku-info-pane
+                         :display-function 'display-info
+                         :display-time nil))
    (sudoku-debug-pane (make-pane 'debug-display-pane
                                  :display-time nil)))
   (:layouts
    (default
        (vertically (:height (+ (* *board-margin* 5) (* (/ 4 4) *board-size*)
-                               (* (/ 1 4) *board-size*))
+                               (* (/ 1 4) *board-size*)
+                               *info-height*)
                     :width (+ (* *board-margin* 4) *board-size*))
+         `(,*info-height* ,info-pane)
          (+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
    (debug
        (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
-                               (* (/ 1 4) *board-size*))
+                               (* (/ 1 4) *board-size*)
+                               *info-height*)
                     :width (+ (* *board-margin* 4) *board-size*))
+         `(,*info-height* ,info-pane)
          (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
          (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
 
@@ -271,17 +279,36 @@
                           *board-margin* *board-margin*
                           (+ *board-margin* (* (size game) cell-size))
                           *board-margin*
-                          :line-thickness 3)
+                          :line-thickness 1)
               (draw-line* stream
                           *board-margin* (+ *board-margin* cell-size)
                           (+ *board-margin* (* (size game) cell-size))
                           (+ *board-margin* cell-size)
-                          :line-thickness 3)
+                          :line-thickness 1)
               (dotimes (i (1+ (size game)))
                 (let ((x1 *board-margin*)
                       (x2 (+ *board-margin* (* i cell-size)))
                       (x3 (+ *board-margin* cell-size)))
                   (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
+
+(let ((info-output-record nil))
+  ;;(defun display-info ()
+  (defmethod display-info ((frame sudoku-frame) stream)
+    (let (;;(stream (get-frame-pane *sudoku-frame* 'info-pane))
+          (game (car (rec-playing *game-record*))))
+      (when (output-record-p info-output-record)
+        (erase-output-record info-output-record stream nil))
+      (setf info-output-record
+            (with-new-output-record (stream)
+              (draw-text* stream (format nil "size: ~Ax~A; level: ~A"
+                                         (nr game) (nc game)
+                                         (cond ((<= (level game) 0.4) "easy")
+                                               ((<= (level game) 0.6) "medium")
+                                               ((<= (level game) 0.74) "difficult")
+                                               (t "very difficult")))
+                          0 (truncate (/ *info-height* 2))
+                          :align-x :left :align-y :center
+                          :text-size (truncate (* 0.8 *info-height*))))))))
 
 ;; actions
 
@@ -368,7 +395,8 @@
             (dotimes (row (size playing))
               (dotimes (col (size playing))
                 (make-cell row col)))
-            (make-tile-all)))))
+            (make-tile-all)))
+    (display-info *sudoku-frame* (get-frame-pane *sudoku-frame* 'info-pane))))
 
 (define-sudoku-frame-command com-other ()
   (com-start :fresh nil :rotate t))
@@ -439,7 +467,9 @@
             :default 0.5
             :prompt "Level"))
   (setf (level *game-record*) level)
-  (debug-msg "Set level ~A~%" level))
+  (debug-msg "Set level ~A~%" level)
+  (erase-all-outputs)
+  (com-start))
 
 (define-sudoku-frame-command com-style
     ((style 'interger
@@ -464,9 +494,9 @@
 
 (make-command-table 'size-command-table
                    :errorp nil
-                   :menu '(("4x4" :command (com-size 2 2))
-                           ("2x3" :command (com-size 2 3))
-                           ("9x9" :command (com-size 3 3))))
+                   :menu '(("(2x2)^2" :command (com-size 2 2))
+                           ("(2x3)^2" :command (com-size 2 3))
+                           ("(3x3)^2" :command (com-size 3 3))))
 
 (make-command-table 'level-command-table
                    :errorp nil
