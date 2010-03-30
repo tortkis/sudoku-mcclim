@@ -300,7 +300,7 @@
         (erase-output-record info-output-record stream nil))
       (setf info-output-record
             (with-new-output-record (stream)
-              (draw-text* stream (format nil "size: ~Ax~A; level: ~A"
+              (draw-text* stream (format nil "size: ~Ax~A    level: ~A"
                                          (nr game) (nc game)
                                          (cond ((<= (level game) 0.4) "easy")
                                                ((<= (level game) 0.6) "medium")
@@ -354,19 +354,26 @@
 ;; commands
 
 (define-sudoku-frame-command com-quit-frame ()
+  (let ((playing (car (rec-playing *game-record*))))
+    (when (and playing
+               (symbolp (check playing))
+               (equal (symbol-name (check playing)) "CORRECT"))
+      (move-game *game-record* rec-playing rec-done)))
   (save-sudoku-game-record *game-record* *sudoku-record-file*)
   (frame-exit *application-frame*))
 
 (define-sudoku-frame-command com-start (&key (fresh 'boolean :default t)
                                              (rotate 'boolean :default nil))
-  (unless *keep-playing-record*
-    (setf (rec-playing *game-record*) nil))
   (let ((playing (car (rec-playing *game-record*)))
         (stream (get-frame-pane *sudoku-frame* 'sudoku-pane)))
-    (when (and playing (eql (check playing) 'CORRECT))
-      (move-game *game-record* rec-playing rec-done))
-
+    (when (and playing
+               (symbolp (check playing))
+               (equal (symbol-name (check playing)) "CORRECT"))
+      (move-game *game-record* rec-playing rec-done)
+      (setf playing nil))
     (cond ((or fresh (null playing))
+           (unless *keep-playing-record*
+             (setf (rec-playing *game-record*) nil))
            (let ((next-game (car (rec-new *game-record*))))
              (when (or (null next-game)
                        (not (eql (nr next-game) (nr *game-record*)))
@@ -496,14 +503,16 @@
                    :errorp nil
                    :menu '(("(2x2)^2" :command (com-size 2 2))
                            ("(2x3)^2" :command (com-size 2 3))
-                           ("(3x3)^2" :command (com-size 3 3))))
+                           ("(4x2)^2" :command (com-size 4 2))
+                           ("(3x3)^2" :command (com-size 3 3))
+                           ("(4x4)^2" :command (com-size 4 4))))
 
 (make-command-table 'level-command-table
                    :errorp nil
                    :menu '(("Easy" :command (com-level 1/3))
                            ("Medium" :command (com-level 0.5))
                            ("Difficult" :command (com-level 51/81))
-                           ("Very Difficult (slow)" :command (com-level 1))))
+                           ("Very Difficult" :command (com-level 1))))
 
 (make-command-table 'style-command-table
                    :errorp nil
