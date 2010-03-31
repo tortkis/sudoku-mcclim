@@ -10,6 +10,7 @@
    (table :accessor table :initarg :table :initform nil)
    (ans :accessor ans :initarg :ans :initform nil)
    (mask :accessor mask :initarg :mask :initform nil)
+   (memo :accessor memo :initarg :memo :initform nil)
    (history :accessor history :initarg :history :initform nil)
    (history-pointer :accessor history-pointer :initform 0)))
 
@@ -58,26 +59,56 @@
     (setf (table s) table)
     (setf (ans s) ans)
     (setf (mask s) mask)
+    (setf (memo s) (make-array (list (size s) (size s)) :initial-element nil))
+    (debug-msg "make-sudoku-game/memo: ~A~%" (memo s))
     s))
 
-(defmethod to-list ((s sudoku-game))
+(defmethod add-memo ((s sudoku-game) row col m)
+  (setf (aref (memo s) row col) m))
+
+(defmethod clean-memo ((s sudoku-game))
+  (dolist (r (array-dimension (memo s) 0))
+    (dolist (c (array-dimension (memo s) 1))
+      (setf (aref (memo s) r c) nil))))
+
+(defmethod game-to-list ((s sudoku-game) &optional (save-memo nil))
   `((LEVEL ,(level s))
     (NR ,(nr s))
     (NC ,(nc s))
     (TABLE ,(table s))
     (ANS ,(ans s))
     (MASK ,(mask s))
+    ,(when save-memo `(MEMO ,(memo s)))
     (HISTORY ,(history s))))
 
 (defun make-sudoku-game-from-list (lis)
-  (make-instance 'sudoku-game
-                 :level (second (assoc 'LEVEL lis))
-                 :nr (second (assoc 'NR lis))
-                 :nc (second (assoc 'NC lis))
-                 :table (second (assoc 'TABLE lis))
-                 :ans (second (assoc 'ANS lis))
-                 :mask (second (assoc 'MASK lis))
-                 :history (second (assoc 'HISTORY lis))))
+  (let* ((level (second (assoc 'LEVEL lis)))
+         (nr (second (assoc 'NR lis)))
+         (nc (second (assoc 'NC lis)))
+         (table (second (assoc 'TABLE lis)))
+         (ans (second (assoc 'ANS lis)))
+         (mask (second (assoc 'MASK lis)))
+         (memo (second (assoc 'MEMO lis)))
+         (history (second (assoc 'HISTORY lis)))
+         (s (make-instance
+             'sudoku-game
+             :level level
+             :nr nr
+             :nc nc
+             :table table
+             :ans ans
+             :mask (or mask (make-array (list nr nc) :initial-element nil))
+             :memo memo
+             :history history)))
+    (if (and (numberp level) (numberp nr) (numberp nc)
+             (every #'(lambda (x) (and (arrayp x)
+                                       (= (length (array-dimensions x)) 2)
+                                       (= (array-dimension x 0) (* nr nc))
+                                       (= (array-dimension x 1) (* nr nc))))
+                    (list table ans mask))
+             (string-equal (symbol-name (check-sudoku ans nr nc)) "CORRECT"))
+        s
+        nil)))
 
 ;;; game records
 
@@ -123,9 +154,9 @@
   `((LEVEL ,(level r))
     (NR ,(nr r))
     (NC ,(nc r))
-    (NEW ,(mapcar #'to-list (rec-new r)))
-    (DONE ,(mapcar #'to-list (rec-done r)))
-    (PLAYING ,(mapcar #'to-list (rec-playing r)))))
+    (NEW ,(mapcar #'(lambda (x) (game-to-list x nil)) (rec-new r)))
+    (DONE ,(mapcar #'(lambda (x) (game-to-list x nil)) (rec-done r)))
+    (PLAYING ,(mapcar #'(lambda (x) (game-to-list x t)) (rec-playing r)))))
 
 (defun make-sudoku-game-record-from-list (lis)
   (let ((r (make-instance 'sudoku-game-record
@@ -133,11 +164,11 @@
                           :nr (second (assoc 'NR lis))
                           :nc (second (assoc 'NC lis)))))
     (setf (rec-new r)
-          (mapcar #'make-sudoku-game-from-list (second (assoc 'NEW lis))))
+          (remove-if #'null (mapcar #'make-sudoku-game-from-list (second (assoc 'NEW lis)))))
     (setf (rec-done r)
-          (mapcar #'make-sudoku-game-from-list (second (assoc 'DONE lis))))
+          (remove-if #'null (mapcar #'make-sudoku-game-from-list (second (assoc 'DONE lis)))))
     (setf (rec-playing r)
-          (mapcar #'make-sudoku-game-from-list (second (assoc 'PLAYING lis))))
+          (remove-if #'null (mapcar #'make-sudoku-game-from-list (second (assoc 'PLAYING lis)))))
     r))
 
 (defmethod save-sudoku-game-record ((r sudoku-game-record) fn)

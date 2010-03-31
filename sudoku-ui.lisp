@@ -203,7 +203,15 @@
                                 (+ *board-margin* (* row cell-size) (/ cell-size 2))
                                 :align-x :center :align-y :center
                                 :text-size (truncate (/ cell-size 2))
-                                :ink (if (mask-p row col) +blue+ +black+))))))))
+                                :ink (if (mask-p row col) +blue+ +black+))))
+              (let ((m (aref (memo game) row col)))
+                (when m
+                  (draw-text* *standard-output* m
+                              (+ *board-margin* (* col cell-size) (* 1 *cell-gap*))
+                              (+ *board-margin* (* row cell-size) (* 1 *cell-gap*))
+                              :align-x :left :align-y :top
+                              :text-size (truncate (/ *board-size* 4 10))
+                              :ink +blue+)))))))
     (push (list (list row col) rec) *game-output-record-cells*)))
 
 (defun erase-cell (row col)
@@ -540,33 +548,53 @@
          (val (if (characterp key)
                   (parse-integer (coerce (list key) 'string) :junk-allowed t)
                   nil))
+         (dir (position (symbol-name key-name) '("UP" "DOWN" "LEFT" "RIGHT")
+                             :test 'equal))
          (prev-row (first *selected-cell*))
-         (prev-col (second *selected-cell*)))
-    (if (and (numberp val) (>= val 0) (<= val (size game))
-             (eql (aref (mask game) prev-row prev-col) 1))
-        (progn
-          (set-cell game prev-row prev-col val)
-          (debug-msg "~A~%" (table game))
-          (erase-cell prev-row prev-col)
-          (make-cell prev-row prev-col))
-        (let ((dir (position (symbol-name key-name) '("UP" "DOWN" "LEFT" "RIGHT")
-                             :test 'equal)))
-          (when dir
-            (let ((col (+ prev-col
-                          (cond ((= dir 2) -1)
-                                ((= dir 3) +1)
-                                (t 0))))
-                  (row (+ prev-row
-                          (cond ((= dir 0) -1)
-                                ((= dir 1) +1)
-                                (t 0)))))
-              (when (and (<= 0 row (1- (size game)))
-                         (<= 0 col (1- (size game))))
-                (setf *selected-cell* (list row col))
-                (erase-cell prev-row prev-col)
-                (make-cell prev-row prev-col)
-                (erase-cell row col)
-                (make-cell row col))))))))
+         (prev-col (second *selected-cell*))
+         (memo nil))
+    (cond ((and (numberp val) (>= val 0) (<= val (size game))
+                (eql (aref (mask game) prev-row prev-col) 1))
+           (set-cell game prev-row prev-col val)
+           (debug-msg "~A~%" (table game))
+           (erase-cell prev-row prev-col)
+           (make-cell prev-row prev-col))
+          (dir
+           (let ((next-col (+ prev-col (cond ((= dir 2) -1)
+                                             ((= dir 3) +1)
+                                             (t 0))))
+                 (next-row (+ prev-row (cond ((= dir 0) -1)
+                                             ((= dir 1) +1)
+                                             (t 0)))))
+             (when (and (<= 0 next-row (1- (size game)))
+                        (<= 0 next-col (1- (size game))))
+               (setf *selected-cell* (list next-row next-col))
+               (erase-cell prev-row prev-col)
+               (make-cell prev-row prev-col)
+               (erase-cell next-row next-col)
+               (make-cell next-row next-col))))
+          ((and (string-equal (symbol-name key-name) "m")
+                (eql (aref (mask game) prev-row prev-col) 1))
+           (accepting-values
+               (window :label "Memo"
+                       :own-window t ; :x-position 40 :y-position 20
+                       :initially-select-query-identifier 'text-field
+                       :height 10 :width 10
+                       :scroll-bars nil
+                       :exit-boxes '((:exit "OK")))
+             ;;(stream-set-cursor-position window 0 10)
+             (setf memo (accept 'string :stream window :prompt "Memo"
+                                :query-identifier 'text-field))
+             (fresh-line window) (terpri window))
+           (when memo
+             (add-memo game prev-row prev-col memo)
+             (erase-cell prev-row prev-col)
+             (make-cell prev-row prev-col)
+             (debug-msg "memo: ~A~%" memo)))
+          ((string-equal (symbol-name key-name) "d")
+           (setf (aref (memo game) prev-row prev-col) nil)
+           (erase-cell prev-row prev-col)
+           (make-cell prev-row prev-col)))))
 
 (defmethod init-sudoku ((frame sudoku-frame) stream)
   (com-start :fresh nil))
