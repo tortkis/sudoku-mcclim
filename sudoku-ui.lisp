@@ -4,9 +4,9 @@
 ;;; game record
 
 (defvar *game-record* nil)
-(defvar *sudoku-record-file* (merge-pathnames
-                              (make-pathname :name ".sudoku" :type "record")
-                              (user-homedir-pathname)))
+(defun sudoku-record-file ()
+  (merge-pathnames (make-pathname :name ".sudoku" :type "record")
+                   (user-homedir-pathname)))
    
 ;;; GUI parameters
 
@@ -359,7 +359,7 @@
                (symbolp (check playing))
                (equal (symbol-name (check playing)) "CORRECT"))
       (move-game *game-record* rec-playing rec-done)))
-  (save-sudoku-game-record *game-record* *sudoku-record-file*)
+  (save-sudoku-game-record *game-record* (sudoku-record-file))
   (frame-exit *application-frame*))
 
 (define-sudoku-frame-command com-start (&key (fresh 'boolean :default t)
@@ -579,7 +579,7 @@
   (setf *selected-cell* nil)
   (setf *use-tile* t)
   (setf *selected-input-val* nil)
-  (setf *game-record* (load-sudoku-game-record *sudoku-record-file*))
+  (setf *game-record* (load-sudoku-game-record (sudoku-record-file)))
   (if (null *game-record*)
       (setf *game-record* (make-instance 'sudoku-game-record)))
   (setf *sudoku-frame* (make-application-frame 'sudoku-frame))
