@@ -178,4 +178,9 @@
 (defun load-sudoku-game-record (fn)
   (with-open-file (str fn :if-does-not-exist nil)
     (when str
-      (make-sudoku-game-record-from-list (read str)))))
+      (let ((lis (read str)))
+        (make-sudoku-game-record-from-list lis)))))
+
+(defmethod valid-sudoku-game-record-p ((r sudoku-game-record))
+  (every #'(lambda (x) (not (null x)))
+         (list (level r) (nr r) (nc r))))

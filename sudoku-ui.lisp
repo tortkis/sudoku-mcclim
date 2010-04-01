@@ -300,7 +300,6 @@
                   (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
 
 (let ((info-output-record nil))
-  ;;(defun display-info ()
   (defmethod display-info ((frame sudoku-frame) stream)
     (let (;;(stream (get-frame-pane *sudoku-frame* 'info-pane))
           (game (car (rec-playing *game-record*))))
@@ -417,7 +416,8 @@
   (com-start :fresh nil :rotate t))
 
 (define-sudoku-frame-command com-redraw ()
-  (redraw-cells-all))
+  (redraw-cells-all)
+  (make-tile-all))
 
 (define-sudoku-frame-command com-reset ()
   (let ((game (car (rec-playing *game-record*))))
@@ -493,6 +493,7 @@
   (cond ((eql style 1)
          (setf *use-tile* nil))
         (t (setf *use-tile* t)))
+  (com-redraw)
   (debug-msg "Set Style ~A~%" style))
 
 (define-sudoku-frame-command com-undo ()
@@ -608,7 +609,7 @@
   (setf *use-tile* t)
   (setf *selected-input-val* nil)
   (setf *game-record* (load-sudoku-game-record (sudoku-record-file)))
-  (if (null *game-record*)
+  (if (not (valid-sudoku-game-record-p *game-record*))
       (setf *game-record* (make-instance 'sudoku-game-record)))
   (setf *sudoku-frame* (make-application-frame 'sudoku-frame))
   (unless *keep-playing-record*
