@@ -466,6 +466,15 @@
       (erase-output-record rec *standard-output* nil))
     (redraw-cells-all)))
 
+(defun check-level ()
+  (let ((level (level *game-record*)))
+    (setf (level *game-record*)
+          (cond ((and (> level 51/81) (> (* (nr *game-record*) (nc *game-record*)) 6))
+                 51/81)
+                ((and (> level 1/3) (> (* (nr *game-record*) (nc *game-record*)) 9))
+                 1/3)
+                (t level)))))
+
 (define-sudoku-frame-command com-size
     ((nr 'integer :default 2 :prompt "Block Rows")
      (nc 'integer :default 2 :prompt "Block Columns"))
@@ -474,6 +483,7 @@
   (setf *selected-input-val* nil)
   (unless (<= (* nr nc) 4)
     (setf *use-tile* nil))
+  (check-level)
   (erase-all-outputs)
   (com-start))
 
@@ -482,7 +492,8 @@
             :default 0.5
             :prompt "Level"))
   (setf (level *game-record*) level)
-  (debug-msg "Set level ~A~%" level)
+  (check-level)
+  (debug-msg "Set level ~A~%" (level *game-record*))
   (erase-all-outputs)
   (com-start))
 
@@ -490,9 +501,9 @@
     ((style 'interger
             :default 2
             :prompt "Style"))
-  (cond ((eql style 1)
-         (setf *use-tile* nil))
-        (t (setf *use-tile* t)))
+  (if (and (eql style 2) (<= (* (nr *game-record*) (nc *game-record*)) 4))
+      (setf *use-tile* t)
+      (setf *use-tile* nil))
   (com-redraw)
   (debug-msg "Set Style ~A~%" style))
 
