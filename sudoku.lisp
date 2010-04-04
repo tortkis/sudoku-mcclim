@@ -7,6 +7,10 @@
 (defvar *sudoku-use-random* t
   "For debugging, set this to nil to get repeatable results.")
 
+(defun empty-cell-p (x) (eql x empty-cell))
+
+(defun empty-cell () empty-cell)
+
 (defun make-sudoku-table (nr nc &optional tbl)
   "Make a table with the size of (nr x nc)^2"
   (let* ((size (* nr nc)))

@@ -9,7 +9,7 @@
    :make-sudoku-mask
    :blank-cells
    :check-sudoku
-   ;; symbols
+   :empty-cell-p
    :empty-cell))
 
 (defpackage :sudoku-mcclim

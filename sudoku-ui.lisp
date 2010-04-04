@@ -204,7 +204,7 @@
                (+ *board-margin* (* col cell-size) (- cell-size *cell-gap*))
                (+ *board-margin* (* row cell-size) (- cell-size *cell-gap*))
                :filled t
-               :ink (cond ((and err (not (eql (get-cell game row col) empty-cell)))
+               :ink (cond ((and err (not (empty-cell-p (get-cell game row col))))
                            (if (mask-p row col) +red+ +magenta+))
                           ((and (= row (first *selected-cell*))
                                 (= col (second *selected-cell*)))
@@ -435,7 +435,7 @@
       (dotimes (row (size game))
         (dotimes (col (size game))
           (when (eql (aref (mask game) row col) 1)
-            (set-cell game row col empty-cell))))
+            (set-cell game row col (empty-cell)))))
       (redraw-cells-all))))
 
 (define-sudoku-frame-command com-check ()
