@@ -223,14 +223,15 @@
                                 :align-x :center :align-y :center
                                 :text-size (truncate (/ cell-size 2))
                                 :ink (if (mask-p row col) +blue+ +black+))))
-              (let ((m (aref (memo game) row col)))
-                (when m
-                  (draw-text* *standard-output* m
-                              (+ *board-margin* (* col cell-size) (* 1 *cell-gap*))
-                              (+ *board-margin* (* row cell-size) (* 1 *cell-gap*))
-                              :align-x :left :align-y :top
-                              :text-size (truncate (/ *board-size* 4 10))
-                              :ink +blue+)))))))
+              (when (memo game)
+                (let ((m (aref (memo game) row col)))
+                  (when m
+                    (draw-text* *standard-output* m
+                                (+ *board-margin* (* col cell-size) (* 1 *cell-gap*))
+                                (+ *board-margin* (* row cell-size) (* 1 *cell-gap*))
+                                :align-x :left :align-y :top
+                                :text-size (truncate (/ *board-size* 4 10))
+                                :ink +blue+))))))))
     (push (list (list row col) rec) *game-output-record-cells*)))
 
 (defun erase-cell (row col)
@@ -318,23 +319,18 @@
                       (x3 (+ *board-margin* cell-size)))
                   (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
 
-(let ((info-output-record nil))
-  (defmethod display-info ((frame sudoku-frame) stream)
-    (let (;;(stream (get-frame-pane *sudoku-frame* 'info-pane))
-          (game (car (rec-playing *game-record*))))
-      (when (output-record-p info-output-record)
-        (erase-output-record info-output-record stream nil))
-      (setf info-output-record
-            (with-new-output-record (stream)
-              (draw-text* stream (format nil "size: ~Ax~A    level: ~A"
-                                         (nr game) (nc game)
-                                         (cond ((<= (level game) 0.4) "easy")
-                                               ((<= (level game) 0.6) "medium")
-                                               ((<= (level game) 0.74) "difficult")
-                                               (t "very difficult")))
-                          0 (truncate (/ *info-height* 2))
-                          :align-x :left :align-y :center
-                          :text-size (truncate (* 0.8 *info-height*))))))))
+(defmethod display-info ((frame sudoku-frame) stream)
+  (let ((game (car (rec-playing *game-record*))))
+    (window-clear stream)
+    (draw-text* stream (format nil "size: ~Ax~A    level: ~A"
+                               (nr game) (nc game)
+                               (cond ((<= (level game) 0.4) "easy")
+                                     ((<= (level game) 0.6) "medium")
+                                     ((<= (level game) 0.74) "difficult")
+                                     (t "very difficult")))
+                0 (truncate (/ *info-height* 2))
+                :align-x :left :align-y :center
+                :text-size (truncate (* 0.8 *info-height*)))))
 
 ;; actions
 
@@ -397,13 +393,7 @@
     (cond ((or fresh (null playing))
            (unless *keep-playing-record*
              (setf (rec-playing *game-record*) nil))
-           (let ((next-game (car (rec-new *game-record*))))
-             (when (or (null next-game)
-                       (not (eql (nr next-game) (nr *game-record*)))
-                       (not (eql (nc next-game) (nc *game-record*)))
-                       (not (eql (level next-game) (level *game-record*))))
-               (create-new-games *game-record*)))
-           (move-game *game-record* rec-new rec-playing)
+           (pick-game-to-play *game-record*)
            (setf playing (car (rec-playing *game-record*))))
           (rotate
            (setf (rec-playing *game-record*)
@@ -434,6 +424,10 @@
 (define-sudoku-frame-command com-redraw ()
   (redraw-cells-all)
   (make-tile-all))
+
+(define-sudoku-frame-command com-create
+    ((num 'integer :default 10 :prompt "Number of new games"))
+  (create-new-games *game-record* :game-n num))
 
 (define-sudoku-frame-command com-reset ()
   (let ((game (car (rec-playing *game-record*))))
@@ -566,6 +560,7 @@
                             ("Redraw" :command com-redraw)
                             ("Other" :command com-other)
                             ("Reset" :command com-reset)
+                            ("Create 10 New Games" :command (com-create 10))
                             ("Quit" :command com-quit-frame)))
 
 (make-command-table 'menubar-command-table
