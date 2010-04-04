@@ -23,42 +23,53 @@
 (defvar *selected-input-val* nil)
 (defvar *keep-playing-record* nil)
 (defvar *debug-output-p* nil)
+(defvar *making-memo-p* nil)
 
 ;;; images
 
 (defparameter *tile-themes*
-  '(("shape1" ("circle1" "star2" "square1" "triangle2") ("msg-correct" "msg-incorrect"))
+  '(("shape1" ("circle1" "star2" "square1" "triangle2"))
     ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
+(defparameter *msg-names* '("msg-correct" "msg-incorrect"))
 (defvar *tile-images* nil)
-(defvar *use-tile* t)
 (defvar *msg-images* nil)
+(defvar *use-tile* t)
+(defvar *selected-tile-theme* "shape1")
 
-(defun load-images (theme)
-  (let* ((theme-set (assoc theme *tile-themes* :test 'equal))
-         (tile-image-names (second theme-set))
-         (msg-image-names (third theme-set)))
-    (when tile-image-names
-      (setf *tile-images* '())
-      (dotimes (idx (length tile-image-names))
-        (multiple-value-bind (array design)
-            (climi::xpm-parse-file (merge-pathnames
-                                    (make-pathname
-                                     :directory `(:relative ,theme)
-                                     :name (nth idx tile-image-names)
-                                     :type "xpm")
-                                    sudoku.system::*images-path*))
-          (push (list idx array design) *tile-images*))))
-    (when msg-image-names
-      (dolist (msg-name msg-image-names)
-        (multiple-value-bind (array design)
-            (climi::xpm-parse-file (merge-pathnames
-                                    (make-pathname
-                                     :directory `(:relative ,theme)
-                                     :name msg-name
-                                     :type "xpm")
-                                    sudoku.system::*images-path*))
-          (push (list msg-name array design) *msg-images*))))))
+(defun load-images (theme-set)
+  (let ((theme-name (first theme-set))
+        (tile-image-names (second theme-set))
+        (tile-images '()))
+    (dotimes (idx (length tile-image-names))
+      (multiple-value-bind (array design)
+          (climi::xpm-parse-file (merge-pathnames
+                                  (make-pathname
+                                   :directory `(:relative ,theme-name)
+                                   :name (nth idx tile-image-names)
+                                   :type "xpm")
+                                  sudoku.system::*images-path*))
+        (push (list idx array design) tile-images)))
+    (cons theme-name tile-images)))
+
+(defun load-msg-images ()
+  (let ((msg-images '()))
+    (dolist (msg-name *msg-names*)
+      (multiple-value-bind (array design)
+          (climi::xpm-parse-file (merge-pathnames
+                                  (make-pathname
+                                   :directory `(:relative "messages")
+                                   :name msg-name
+                                   :type "xpm")
+                                  sudoku.system::*images-path*))
+        (push (list msg-name array design) msg-images)))
+    msg-images))
+
+(defun load-images-all (themes)
+  (let ((images-all '()))
+    (dolist (theme themes)
+      (push (load-images theme) images-all))
+    images-all))
 
 ;; functions
 
@@ -100,6 +111,7 @@
 
 (defclass sudoku-board-pane (application-pane) ())
 (defclass sudoku-info-pane (clim-stream-pane) ())
+(defclass sudoku-memo-input-pane (clim-stream-pane) ())
 (defclass debug-display-pane (clim-stream-pane) ())
 
 (defclass cell ()
@@ -130,6 +142,8 @@
    (info-pane (make-pane 'sudoku-info-pane
                          :display-function 'display-info
                          :display-time nil))
+   (memo-pane (make-pane 'sudoku-memo-input-pane
+                         :display-time nil))
    (sudoku-debug-pane (make-pane 'debug-display-pane
                                  :display-time nil)))
   (:layouts
@@ -137,23 +151,28 @@
        (vertically (:height (+ (* *board-margin* 5) (* (/ 4 4) *board-size*)
                                (* (/ 1 4) *board-size*)
                                *info-height*)
-                    :width (+ (* *board-margin* 4) *board-size*))
-         `(,*info-height* ,info-pane)
+                            :width (+ (* *board-margin* 4) *board-size*))
+         `(,*info-height* ,(horizontally ()
+                                         (2/3 info-pane)
+                                         (+fill+ memo-pane)))
          (+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
    (debug
-       (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
-                               (* (/ 1 4) *board-size*)
-                               *info-height*)
-                    :width (+ (* *board-margin* 4) *board-size*))
-         `(,*info-height* ,info-pane)
-         (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
-         (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
+    (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
+                            (* (/ 1 4) *board-size*)
+                            *info-height*)
+                         :width (+ (* *board-margin* 4) *board-size*))
+      `(,*info-height* ,(horizontally ()
+                                      (2/3 info-pane)
+                                      (+fill+ memo-pane)))
+      (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
+      (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
 
 ;; display
 
 (defun draw-tile (val x y &optional (in-tile-sel nil))
   (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
-         (img (cdr (assoc (1- val) *tile-images*)))
+         (img (cdr (assoc (1- val) (cdr (assoc *selected-tile-theme*
+                                               *tile-images* :test 'equal)))))
          (img-array (first img))
          (img-design (second img))) 
     (draw-rectangle* *standard-output*
@@ -231,7 +250,7 @@
       (dotimes (col (size game))
         (erase-cell row col)
         (make-cell row col)))))
-  
+
 (defun make-tile (val)
   (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
          (x (+ *board-margin*  (* (1- val) cell-size)))
@@ -265,7 +284,7 @@
 
 (defmethod display-sudoku-board ((frame sudoku-frame) stream)
   (let* ((game (car (rec-playing *game-record*)))
-        (cell-size (/ *board-size* (size game))))
+         (cell-size (/ *board-size* (size game))))
     (when (output-record-p *game-output-record-board*)
       (erase-output-record *game-output-record-board* stream nil))
     (setf *game-output-record-board* 
@@ -323,9 +342,6 @@
     ((tile 'tile)
      (x 'real) (y 'real))
   (declare (ignore x y))
-  ;;(if (eql *selected-input-val* (val tile))
-  ;;    (setf *selected-input-val* nil)
-  ;;    (setf *selected-input-val* (val tile)))
   (setf *selected-input-val* (val tile))
   (make-tile-all))
 
@@ -352,7 +368,7 @@
     (erase-cell row col)
     (make-cell row col)
     (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
-    
+
 (define-presentation-to-command-translator translator-click-cell
     (cell-blank com-click-cell sudoku-frame)
     (object x y)
@@ -444,7 +460,8 @@
                                     (equal (symbol-name chk) "CORRECT"))
                                "msg-correct"
                                "msg-incorrect")
-                           *msg-images* :test 'equal))
+                           *msg-images*
+                           :test 'equal))
            (img-array (second msg-img))
            (img-design (third msg-img)))
       (when (and img-array img-design)
@@ -460,8 +477,8 @@
                                       (- (/ (array-dimension img-array 0) 2))))))))
     (notify-user *sudoku-frame* (if (and (symbolp chk)
                                          (equal (symbol-name chk) "CORRECT"))
-                               "CORRECT!"
-                               "INCORRECT"))
+                                    "CORRECT!"
+                                    "INCORRECT"))
     (when (output-record-p rec)
       (erase-output-record rec *standard-output* nil))
     (redraw-cells-all)))
@@ -500,10 +517,13 @@
 (define-sudoku-frame-command com-style
     ((style 'interger
             :default 2
-            :prompt "Style"))
-  (if (and (eql style 2) (<= (* (nr *game-record*) (nc *game-record*)) 4))
-      (setf *use-tile* t)
-      (setf *use-tile* nil))
+            :prompt "Style")
+     (img-name 'string :default "shape1"))
+  (cond ((and (eql style 2) (<= (* (nr *game-record*) (nc *game-record*)) 4))
+         (setf *use-tile* t)
+         (when img-name
+           (setf *selected-tile-theme* img-name)))
+        (t (setf *use-tile* nil)))
   (com-redraw)
   (debug-msg "Set Style ~A~%" style))
 
@@ -520,36 +540,41 @@
     (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
 
 (make-command-table 'size-command-table
-                   :errorp nil
-                   :menu '(("(2x2)^2" :command (com-size 2 2))
-                           ("(2x3)^2" :command (com-size 2 3))
-                           ("(4x2)^2" :command (com-size 4 2))
-                           ("(3x3)^2" :command (com-size 3 3))
-                           ("(4x4)^2" :command (com-size 4 4))))
+                    :errorp nil
+                    :menu '(("(2x2)^2" :command (com-size 2 2))
+                            ("(2x3)^2" :command (com-size 2 3))
+                            ("(4x2)^2" :command (com-size 4 2))
+                            ("(3x3)^2" :command (com-size 3 3))
+                            ("(4x4)^2" :command (com-size 4 4))))
 
 (make-command-table 'level-command-table
-                   :errorp nil
-                   :menu '(("Easy" :command (com-level 1/3))
-                           ("Medium" :command (com-level 0.5))
-                           ("Difficult" :command (com-level 51/81))
-                           ("Very Difficult" :command (com-level 1))))
+                    :errorp nil
+                    :menu '(("Easy" :command (com-level 1/3))
+                            ("Medium" :command (com-level 0.5))
+                            ("Difficult" :command (com-level 51/81))
+                            ("Very Difficult" :command (com-level 1))))
 
 (make-command-table 'style-command-table
-                   :errorp nil
-                   :menu '(("Number" :command (com-style 1))
-                           ("Image" :command (com-style 2))))
+                    :errorp nil
+                    :menu '(("Number" :command (com-style 1 ""))
+                            ("Image(shape1)" :command (com-style 2 "shape1"))
+                            ("Image(animals)" :command (com-style 2 "func-animals"))))
+
+(make-command-table 'game-command-table
+                    :errorp nil
+                    :menu '(("New" :command com-start)
+                            ("Redraw" :command com-redraw)
+                            ("Other" :command com-other)
+                            ("Reset" :command com-reset)
+                            ("Quit" :command com-quit-frame)))
 
 (make-command-table 'menubar-command-table
                     :errorp nil
-                    :menu '(("Quit" :command com-quit-frame)
-                            ("New" :command com-start)
-                            ("Other" :command com-other)
-                            ("Reset" :command com-reset)
-                            ("Redraw" :command com-redraw)
-                            ("Check" :command com-check)
+                    :menu '(("Game" :menu game-command-table)
                             ("Size" :menu size-command-table)
                             ("Level" :menu level-command-table)
                             ("Style" :menu style-command-table)
+                            ("Check" :command com-check)
                             ("Undo" :command com-undo)
                             ("Redo" :command com-redo)))
 
@@ -561,11 +586,17 @@
                   (parse-integer (coerce (list key) 'string) :junk-allowed t)
                   nil))
          (dir (position (symbol-name key-name) '("UP" "DOWN" "LEFT" "RIGHT")
-                             :test 'equal))
+                        :test 'equal))
          (prev-row (first *selected-cell*))
          (prev-col (second *selected-cell*))
          (memo nil))
-    (cond ((and (numberp val) (>= val 0) (<= val (size game))
+    (cond ((equal (symbol-name key-name) "ESCAPE")
+           (let ((str (get-frame-pane *sudoku-frame* 'memo-pane)))
+             (setf *making-memo-p* nil)
+             (window-clear str)))
+          (*making-memo-p*
+           nil)
+          ((and (numberp val) (>= val 0) (<= val (size game))
                 (eql (aref (mask game) prev-row prev-col) 1))
            (set-cell game prev-row prev-col val)
            (debug-msg "~A~%" (table game))
@@ -587,22 +618,16 @@
                (make-cell next-row next-col))))
           ((and (string-equal (symbol-name key-name) "m")
                 (eql (aref (mask game) prev-row prev-col) 1))
-           (accepting-values
-               (window :label "Memo"
-                       :own-window t ; :x-position 40 :y-position 20
-                       :initially-select-query-identifier 'text-field
-                       :height 10 :width 10
-                       :scroll-bars nil
-                       :exit-boxes '((:exit "OK")))
-             ;;(stream-set-cursor-position window 0 10)
-             (setf memo (accept 'string :stream window :prompt "Memo"
-                                :query-identifier 'text-field))
-             (fresh-line window) (terpri window))
+           (let ((str (get-frame-pane *sudoku-frame* 'memo-pane)))
+             (setf *making-memo-p* t)
+             (window-clear str)
+             (setf memo (accept 'string
+                                :stream str :prompt "Memo"))
+             (setf *making-memo-p* nil))
            (when memo
              (add-memo game prev-row prev-col memo)
              (erase-cell prev-row prev-col)
-             (make-cell prev-row prev-col)
-             (debug-msg "memo: ~A~%" memo)))
+             (make-cell prev-row prev-col)))
           ((string-equal (symbol-name key-name) "d")
            (setf (aref (memo game) prev-row prev-col) nil)
            (erase-cell prev-row prev-col)
@@ -619,6 +644,7 @@
   (setf *selected-cell* nil)
   (setf *use-tile* t)
   (setf *selected-input-val* nil)
+  (setf *making-memo-p* nil)
   (setf *game-record* (load-sudoku-game-record (sudoku-record-file)))
   (if (not (valid-sudoku-game-record-p *game-record*))
       (setf *game-record* (make-instance 'sudoku-game-record)))
@@ -631,6 +657,7 @@
   (run-frame-top-level *sudoku-frame*))
 
 (eval-when (:load-toplevel)
-  (load-images "shape1"))
+  (setf *tile-images* (load-images-all *tile-themes*))
+  (setf *msg-images* (load-msg-images)))
 
 
