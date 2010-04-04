@@ -184,3 +184,23 @@
 (defmethod valid-sudoku-game-record-p ((r sudoku-game-record))
   (every #'(lambda (x) (not (null x)))
          (list (level r) (nr r) (nc r))))
+
+(defmethod pick-game-to-play ((r sudoku-game-record))
+  (cond ((<= (length (rec-new r)) 0)
+         (create-new-games r)
+         (move-game r rec-new rec-playing))
+        (t (labels
+               ((pick (new-games)
+                  (cond ((null new-games)
+                         (create-new-games r)
+                         (move-game r rec-new rec-playing)
+                         nil)
+                        (t (let ((g (car new-games)))
+                             (cond ((and (eql (nr g) (nr r))
+                                         (eql (nc g) (nc r))
+                                         (eql (level g) (level r)))
+                                    (push g (rec-playing r))
+                                    (cdr new-games))
+                                   (t (cons g (pick (cdr new-games))))))))))
+             (setf (rec-new r) (pick (rec-new r)))))))
+                        
