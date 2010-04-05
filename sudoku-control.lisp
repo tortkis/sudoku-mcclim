@@ -1,5 +1,5 @@
 
-(in-package :sudoku-mcclim)
+(in-package :sudoku-control)
 
 ;;; game controller
 
@@ -60,7 +60,6 @@
     (setf (ans s) ans)
     (setf (mask s) mask)
     (setf (memo s) (make-array (list (size s) (size s)) :initial-element nil))
-    (debug-msg "make-sudoku-game/memo: ~A~%" (memo s))
     s))
 
 (defmethod add-memo ((s sudoku-game) row col m)

@@ -15,6 +15,6 @@
   :components ((:file "package")
                (:file "sudoku" :depends-on ("package"))
                (:file "sudoku-control" :depends-on ("package" "sudoku"))
-               (:file "sudoku-ui" :depends-on ("package" "sudoku" "sudoku-control"))))
+               (:file "sudoku-ui-mcclim" :depends-on ("package" "sudoku" "sudoku-control"))))
 
 (defvar *images-path* (asdf:system-relative-pathname 'sudoku-mcclim "images/"))
