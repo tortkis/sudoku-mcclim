@@ -28,10 +28,11 @@
 ;;; images
 
 (defparameter *tile-themes*
-  '(("shape1" ("circle1" "star2" "square1" "triangle2"))
+  '(;;("shape1" ("circle1" "star2" "square1" "triangle2"))
+    ("shape1" ("circle1" "star2" "number-comic-3" "triangle2"))
     ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
-(defparameter *msg-names* '("msg-correct" "msg-incorrect"))
+(defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
 (defvar *tile-images* nil)
 (defvar *msg-images* nil)
 (defvar *use-tile* t)
@@ -166,6 +167,25 @@
                                       (+fill+ memo-pane)))
       (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
       (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
+
+(define-application-frame check-frame ()
+  ()
+  (:panes
+   (check-pane :clim-stream
+               :background +white+
+               :display-time nil
+               :display-function 'display-check)
+   (exit-button (make-pane 'push-button
+                           :label "OK" :width 400
+                           :activate-callback #'(lambda (button)
+                                                  (declare (ignore button))
+                                                  (frame-exit *application-frame*)))))
+  (:layouts
+   (default
+       (vertically (:height 150 :width 400)
+         (100 check-pane)
+         (+fill+ (horizontally ()
+                   (+fill+ (spacing (:thickness *board-margin*) exit-button))))))))
 
 ;; display
 
@@ -322,15 +342,44 @@
 (defmethod display-info ((frame sudoku-frame) stream)
   (let ((game (car (rec-playing *game-record*))))
     (window-clear stream)
-    (draw-text* stream (format nil "size: ~Ax~A    level: ~A"
+    (draw-text* stream (format nil "size: ~Ax~A  level: ~A  games: ~A"
                                (nr game) (nc game)
                                (cond ((<= (level game) 0.4) "easy")
                                      ((<= (level game) 0.6) "medium")
                                      ((<= (level game) 0.74) "difficult")
-                                     (t "very difficult")))
+                                     (t "very difficult"))
+                               (length (remove-if-not
+                                        #'(lambda (x) (and (eql (nr game) (nr x))
+                                                           (eql (nc game) (nc x))
+                                                           (eql (level game) (level x))))
+                                        (rec-new *game-record*))))
                 0 (truncate (/ *info-height* 2))
                 :align-x :left :align-y :center
                 :text-size (truncate (* 0.8 *info-height*)))))
+
+(defun display-check (frame stream)
+  (declare (ignore frame))
+  (let* ((game (car (rec-playing *game-record*)))
+         (chk (check game)))
+    (when (listp chk)
+      (redraw-cells-all)
+      (mapc #'(lambda (rc) (let ((r (first rc)) (c (second rc)))
+                             (erase-cell r c)
+                             (make-cell r c t)))
+            (car chk)))
+    (let* ((msg-img (assoc (if (and (symbolp chk)
+                                    (equal (symbol-name chk) "CORRECT"))
+                               "msg-correct2"
+                               "msg-incorrect2")
+                           *msg-images*
+                           :test 'equal))
+           (img-array (second msg-img))
+           (img-design (third msg-img)))
+      (when (and img-array img-design)
+        (draw-pattern* stream
+                       (make-pattern img-array img-design)
+                       0 0)))
+    (redraw-cells-all)))
 
 ;; actions
 
@@ -439,43 +488,9 @@
       (redraw-cells-all))))
 
 (define-sudoku-frame-command com-check ()
-  (let* ((game (car (rec-playing *game-record*)))
-         (chk (check game))
-         (rec nil))
-    (debug-msg "~A~%" (table game))
-    (debug-msg "[CHECK] ~A~%" chk)
-    (when (listp chk)
-      (redraw-cells-all)
-      (mapc #'(lambda (rc) (let ((r (first rc)) (c (second rc)))
-                             (erase-cell r c)
-                             (make-cell r c t)))
-            (car chk)))
-    (let* ((msg-img (assoc (if (and (symbolp chk)
-                                    (equal (symbol-name chk) "CORRECT"))
-                               "msg-correct"
-                               "msg-incorrect")
-                           *msg-images*
-                           :test 'equal))
-           (img-array (second msg-img))
-           (img-design (third msg-img)))
-      (when (and img-array img-design)
-        (setf rec (with-new-output-record (*standard-output*)
-                    (draw-pattern* *standard-output*
-                                   (make-pattern img-array img-design)
-                                   (+ *board-margin*
-                                      (/ *board-size* 2)
-                                      (- (/ (array-dimension img-array 1) 2)))
-                                   (+ (* 2 *board-margin*)
-                                      *board-size*
-                                      (/ *board-size* 4 2)
-                                      (- (/ (array-dimension img-array 0) 2))))))))
-    (notify-user *sudoku-frame* (if (and (symbolp chk)
-                                         (equal (symbol-name chk) "CORRECT"))
-                                    "CORRECT!"
-                                    "INCORRECT"))
-    (when (output-record-p rec)
-      (erase-output-record rec *standard-output* nil))
-    (redraw-cells-all)))
+  (run-frame-top-level
+   (make-application-frame 'check-frame
+                           :calling-frame *sudoku-frame*)))
 
 (defun check-level ()
   (let ((level (level *game-record*)))
@@ -532,6 +547,7 @@
     (redo game)
     (com-redraw)
     (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
+
 
 (make-command-table 'size-command-table
                     :errorp nil
@@ -630,6 +646,9 @@
 
 (defmethod init-sudoku ((frame sudoku-frame) stream)
   (com-start :fresh nil))
+
+
+;;
 
 (defun run ()
   (setf *game-output-record* nil)
