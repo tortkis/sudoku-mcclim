@@ -1,14 +1,14 @@
 
 (in-package :sudoku-mcclim)
 
-;;; game record
+;; game record
 
 (defvar *game-record* nil)
 (defun sudoku-record-file ()
   (merge-pathnames (make-pathname :name ".sudoku" :type "record")
                    (user-homedir-pathname)))
    
-;;; GUI parameters
+;; GUI parameters
 
 (defparameter *sudoku-frame* nil)
 (defparameter *board-size* 500)
@@ -25,11 +25,42 @@
 (defvar *debug-output-p* nil)
 (defvar *making-memo-p* nil)
 
-;;; images
+;; colors
+
+(defstruct colors
+  background
+  board
+  cell-text-open
+  cell-text-mask
+  cell-text-memo
+  cell-open
+  cell-open-sel
+  cell-open-err
+  cell-mask
+  cell-mask-sel
+  cell-mask-err
+  tile-sel)
+
+(defvar *colors* (make-colors
+                  :background (rgb-color #X4682b4)
+                  :board (rgb-color #X87ceeb)
+                  :cell-text-open +black+
+                  :cell-text-mask +blue+
+                  :cell-text-memo +blue+
+                  :cell-open (rgb-color #X00ced1)
+                  :cell-open-sel (rgb-color #X40e0d0)
+                  :cell-open-err +magenta+
+                  :cell-mask (rgb-color #X87ceeb)
+                  :cell-mask-sel +white+
+                  :cell-mask-err +red+
+                  :tile-sel +blue+))
+
+;; images
 
 (defparameter *tile-themes*
-  '(;;("shape1" ("circle1" "star2" "square1" "triangle2"))
-    ("shape1" ("circle1" "star2" "number-comic-3" "triangle2"))
+  '(("shape1" ("circle1" "star2" "square1" "triangle2"))
+    ("shape2" ("ball-red" "ball-yellow" "ball-green" "ball-blue"))
+    ("number1" ("number-comic-1""number-comic-2""number-comic-3" "number-comic-4"))
     ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
@@ -79,7 +110,7 @@
      (format (get-frame-pane *sudoku-frame* 'sudoku-debug-pane) ,format ,@args)))
 
 (defun rgb-color (rgb)
-  "create a MCCLIM color object from 6-digit hexadecimal code"
+  "create a MCCLIM color object from a 6-digit hexadecimal code"
   (make-rgb-color (/ (truncate (/ rgb (expt #X100 2))) #XFF)
                   (/ (mod (truncate (/ rgb #X100)) #X100) #XFF)
                   (/ (mod rgb #X100) #XFF)))
@@ -137,7 +168,7 @@
   (:menu-bar menubar-command-table)
   (:panes
    (sudoku-pane (make-pane 'sudoku-board-pane
-                           :background (rgb-color #X4682b4)
+                           :background (colors-background *colors*)
                            :display-time nil
                            :display-function 'init-sudoku))
    (info-pane (make-pane 'sudoku-info-pane
@@ -149,22 +180,24 @@
                                  :display-time nil)))
   (:layouts
    (default
-       (vertically (:height (+ (* *board-margin* 5) (* (/ 4 4) *board-size*)
+       (vertically (:height (+ (* *board-margin* 3)
+                               *board-size*
                                (* (/ 1 4) *board-size*)
                                *info-height*)
-                            :width (+ (* *board-margin* 4) *board-size*))
+                            :width (+ (* *board-margin* 2) *board-size*))
          `(,*info-height* ,(horizontally ()
                                          (2/3 info-pane)
                                          (+fill+ memo-pane)))
-         (+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
+         ;;(+fill+ (spacing (:thickness *board-margin*) sudoku-pane))))
+         (+fill+ sudoku-pane)))
    (debug
-    (vertically (:height (+ (* *board-margin* 6) (* (/ 5 4) *board-size*)
+    (vertically (:height (+ (* *board-margin* 6)
+                            *board-size*
+                            (* (/ 1 4) *board-size*)
                             (* (/ 1 4) *board-size*)
                             *info-height*)
                          :width (+ (* *board-margin* 4) *board-size*))
-      `(,*info-height* ,(horizontally ()
-                                      (2/3 info-pane)
-                                      (+fill+ memo-pane)))
+      `(,*info-height* ,(horizontally () (2/3 info-pane) (+fill+ memo-pane)))
       (5/6 (spacing (:thickness *board-margin*) sudoku-pane))
       (+fill+ (scrolling (:scroll-bars :vertical) sudoku-debug-pane))))))
 
@@ -179,6 +212,7 @@
                            :label "OK" :width 400
                            :activate-callback #'(lambda (button)
                                                   (declare (ignore button))
+                                                  (redraw-cells-all)
                                                   (frame-exit *application-frame*)))))
   (:layouts
    (default
@@ -201,7 +235,8 @@
                      (+ x (- cell-size *cell-gap*))
                      (+ y (- cell-size *cell-gap*))
                      :filled (if (and in-tile-sel (eql val *selected-input-val*)) t nil)
-                     :ink (if (and in-tile-sel (eql val *selected-input-val*)) +blue+ nil))
+                     :ink (if (and in-tile-sel (eql val *selected-input-val*))
+                              (colors-tile-sel *colors*) nil))
     (draw-pattern* *standard-output*
                    (make-pattern img-array img-design)
                    (+ x (* 0.5 (- cell-size (array-dimension img-array 1))))
@@ -225,13 +260,17 @@
                (+ *board-margin* (* row cell-size) (- cell-size *cell-gap*))
                :filled t
                :ink (cond ((and err (not (empty-cell-p (get-cell game row col))))
-                           (if (mask-p row col) +red+ +magenta+))
+                           (if (mask-p row col)
+                               (colors-cell-mask-err *colors*)
+                               (colors-cell-open-err *colors*)))
                           ((and (= row (first *selected-cell*))
                                 (= col (second *selected-cell*)))
-                           (if (mask-p row col) +white+ (rgb-color #X40e0d0)))
+                           (if (mask-p row col)
+                               (colors-cell-mask-sel *colors*)
+                               (colors-cell-open-sel *colors*)))
                           (t (if (mask-p row col)
-                                 (rgb-color #X4682b4) ; +gray80+ ; (rgb-color #X40e0d0)
-                                 (rgb-color #X00ced1)))))
+                                 (colors-cell-mask *colors*)
+                                 (colors-cell-open *colors*)))))
               (when (> val 0)
                 (if *use-tile*
                     (draw-tile val
@@ -242,7 +281,9 @@
                                 (+ *board-margin* (* row cell-size) (/ cell-size 2))
                                 :align-x :center :align-y :center
                                 :text-size (truncate (/ cell-size 2))
-                                :ink (if (mask-p row col) +blue+ +black+))))
+                                :ink (if (mask-p row col)
+                                         (colors-cell-text-mask *colors*)
+                                         (colors-cell-text-open *colors*)))))
               (when (memo game)
                 (let ((m (aref (memo game) row col)))
                   (when m
@@ -251,7 +292,7 @@
                                 (+ *board-margin* (* row cell-size) (* 1 *cell-gap*))
                                 :align-x :left :align-y :top
                                 :text-size (truncate (/ *board-size* 4 10))
-                                :ink +blue+))))))))
+                                :ink (colors-cell-text-memo *colors*)))))))))
     (push (list (list row col) rec) *game-output-record-cells*)))
 
 (defun erase-cell (row col)
@@ -292,7 +333,9 @@
                         (+ x (/ cell-size 2))
                         (+ y (/ cell-size 2))
                         :align-x :center :align-y :center
-                        :ink (if (eql val *selected-input-val*) +blue+ +black+)
+                        :ink (if (eql val *selected-input-val*)
+                                 (colors-cell-text-mask *colors*)
+                                 (colors-cell-text-open *colors*))
                         :text-size (truncate (/ cell-size 2))))))))
 
 (defun make-tile-all ()
@@ -310,6 +353,11 @@
       (erase-output-record *game-output-record-board* stream nil))
     (setf *game-output-record-board* 
           (with-new-output-record (stream)
+            (draw-rectangle* stream
+                             0 0
+                             (+ (* 2 *board-margin*) *board-size*)
+                             (+ (* 3/2 *board-margin*) *board-size*)
+                             :filled t :ink (colors-board *colors*))
             (dotimes (i (1+ (size game)))
               (let ((x1 *board-margin*)
                     (x2 (+ *board-margin* (* i cell-size)))
@@ -342,8 +390,7 @@
 (defmethod display-info ((frame sudoku-frame) stream)
   (let ((game (car (rec-playing *game-record*))))
     (window-clear stream)
-    (draw-text* stream (format nil "size: ~Ax~A  level: ~A  games: ~A"
-                               (nr game) (nc game)
+    (draw-text* stream (format nil "level: [~A]  games: [~A]"
                                (cond ((<= (level game) 0.4) "easy")
                                      ((<= (level game) 0.6) "medium")
                                      ((<= (level game) 0.74) "difficult")
@@ -379,7 +426,7 @@
         (draw-pattern* stream
                        (make-pattern img-array img-design)
                        0 0)))
-    (redraw-cells-all)))
+    ))
 
 ;; actions
 
@@ -567,7 +614,9 @@
 (make-command-table 'style-command-table
                     :errorp nil
                     :menu '(("Number" :command (com-style 1 ""))
+                            ("Number(comic)" :command (com-style 2 "number1"))
                             ("Image(shape1)" :command (com-style 2 "shape1"))
+                            ("Image(ball)" :command (com-style 2 "shape2"))
                             ("Image(animals)" :command (com-style 2 "func-animals"))))
 
 (make-command-table 'game-command-table
