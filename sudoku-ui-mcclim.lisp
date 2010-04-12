@@ -1,6 +1,18 @@
 
 (in-package :sudoku-mcclim)
 
+;; auxiliary functions
+
+(defmacro debug-msg (format &rest args)
+  `(when *debug-output-p*
+     (format (get-frame-pane *sudoku-frame* 'sudoku-debug-pane) ,format ,@args)))
+
+(defun rgb-color (rgb)
+  "create a MCCLIM color object from a 6-digit hexadecimal code"
+  (make-rgb-color (/ (truncate (/ rgb (expt #X100 2))) #XFF)
+                  (/ (mod (truncate (/ rgb #X100)) #X100) #XFF)
+                  (/ (mod rgb #X100) #XFF)))
+
 ;; game record
 
 (defvar *game-record* nil)
@@ -104,16 +116,6 @@
     images-all))
 
 ;; functions
-
-(defmacro debug-msg (format &rest args)
-  `(when *debug-output-p*
-     (format (get-frame-pane *sudoku-frame* 'sudoku-debug-pane) ,format ,@args)))
-
-(defun rgb-color (rgb)
-  "create a MCCLIM color object from a 6-digit hexadecimal code"
-  (make-rgb-color (/ (truncate (/ rgb (expt #X100 2))) #XFF)
-                  (/ (mod (truncate (/ rgb #X100)) #X100) #XFF)
-                  (/ (mod rgb #X100) #XFF)))
 
 (defun coordinates-to-rowcol (x y)
   (let ((game (car (rec-playing *game-record*))))
@@ -551,24 +553,27 @@
 (define-sudoku-frame-command com-size
     ((nr 'integer :default 2 :prompt "Block Rows")
      (nc 'integer :default 2 :prompt "Block Columns"))
-  (setf (nr *game-record*) nr)
-  (setf (nc *game-record*) nc)
-  (setf *selected-input-val* nil)
-  (unless (<= (* nr nc) 4)
-    (setf *use-tile* nil))
-  (check-level)
-  (erase-all-outputs)
-  (com-start))
+  (unless (and (eql (nr *game-record*) nr)
+               (eql (nc *game-record*) nc))
+    (move-game *game-record* rec-playing rec-new)
+    (setf (nr *game-record*) nr)
+    (setf (nc *game-record*) nc)
+    (setf *selected-input-val* nil)
+    (unless (<= (* nr nc) 4)
+      (setf *use-tile* nil))
+    (check-level)
+    (erase-all-outputs)
+    (com-start)))
 
 (define-sudoku-frame-command com-level
-    ((level 'interger
-            :default 0.5
-            :prompt "Level"))
-  (setf (level *game-record*) level)
-  (check-level)
-  (debug-msg "Set level ~A~%" (level *game-record*))
-  (erase-all-outputs)
-  (com-start))
+    ((level 'interger :default 0.5 :prompt "Level"))
+  (let ((orig-level (level *game-record*)))
+    (setf (level *game-record*) level)
+    (check-level)
+    (unless (eql orig-level (level *game-record*))
+      (move-game *game-record* rec-playing rec-new)
+      (erase-all-outputs)
+      (com-start))))
 
 (define-sudoku-frame-command com-style
     ((style 'interger
