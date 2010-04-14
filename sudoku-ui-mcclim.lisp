@@ -556,11 +556,16 @@
                            :calling-frame *sudoku-frame*)))
 
 (defun check-level ()
-  (let ((level (level *game-record*)))
+  (let ((level (level *game-record*))
+        (game-size (* (nr *game-record*) (nc *game-record*))))
+    (setf (command-enabled 'com-level-very-difficult *sudoku-frame*) (<= game-size 6)
+          (command-enabled 'com-level-difficult *sudoku-frame*) (<= game-size 9)
+          (command-enabled 'com-level-medium *sudoku-frame*) (<= game-size 9)
+          (command-enabled 'com-level-easy *sudoku-frame*) t)
     (setf (level *game-record*)
-          (cond ((and (> level 51/81) (> (* (nr *game-record*) (nc *game-record*)) 6))
+          (cond ((and (> level 51/81) (> game-size 6))
                  51/81)
-                ((and (> level 1/3) (> (* (nr *game-record*) (nc *game-record*)) 9))
+                ((and (> level 1/3) (> game-size 9))
                  1/3)
                 (t level)))))
 
@@ -586,6 +591,11 @@
       (move-game *game-record* rec-playing rec-new)
       (erase-all-outputs)
       (com-start))))
+
+(define-sudoku-frame-command com-level-easy () (com-level 1/3))
+(define-sudoku-frame-command com-level-medium () (com-level 0.5))
+(define-sudoku-frame-command com-level-difficult () (com-level 51/81))
+(define-sudoku-frame-command com-level-very-difficult () (com-level 1))
 
 (define-sudoku-frame-command com-style
     ((style 'interger
@@ -623,10 +633,10 @@
 
 (make-command-table 'level-command-table
                     :errorp nil
-                    :menu '(("Easy" :command (com-level 1/3))
-                            ("Medium" :command (com-level 0.5))
-                            ("Difficult" :command (com-level 51/81))
-                            ("Very Difficult" :command (com-level 1))))
+                    :menu '(("Easy" :command com-level-easy)
+                            ("Medium" :command com-level-medium)
+                            ("Difficult" :command com-level-difficult)
+                            ("Very Difficult" :command com-level-very-difficult)))
 
 (make-command-table 'style-command-table
                     :errorp nil
@@ -734,6 +744,7 @@
   (if *debug-output-p*
       (setf (frame-current-layout *sudoku-frame*) 'debug)
       (setf (frame-current-layout *sudoku-frame*) 'default))
+  (check-level)
   (run-frame-top-level *sudoku-frame*))
 
 (eval-when (:load-toplevel)
