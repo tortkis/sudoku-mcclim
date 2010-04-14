@@ -53,26 +53,31 @@
   cell-mask-err
   tile-sel)
 
-(defvar *colors* (make-colors
-                  :background (rgb-color #X4682b4)
-                  :board (rgb-color #X87ceeb)
-                  :cell-text-open +black+
-                  :cell-text-mask +blue+
-                  :cell-text-memo +blue+
-                  :cell-open (rgb-color #X00ced1)
-                  :cell-open-sel (rgb-color #X40e0d0)
-                  :cell-open-err +magenta+
-                  :cell-mask (rgb-color #X87ceeb)
-                  :cell-mask-sel +white+
-                  :cell-mask-err +red+
-                  :tile-sel +blue+))
+(defparameter *colors*
+  (make-colors
+   :background (rgb-color #X4682b4)
+   :board (rgb-color #X87ceeb)
+   :cell-text-open +black+
+   :cell-text-mask +blue+
+   :cell-text-memo +blue+
+   :cell-open (rgb-color #X87ceeb) ; (rgb-color #X00ced1)
+   :cell-open-sel (rgb-color #X40e0d0)
+   :cell-open-err +magenta+
+   :cell-mask (rgb-color #X4682b4) ; (rgb-color #X87ceeb)
+   :cell-mask-sel +white+
+   :cell-mask-err +red+
+   :tile-sel +blue+))
 
 ;; images
 
 (defparameter *tile-themes*
   '(("shape1" ("circle1" "star2" "square1" "triangle2"))
-    ("shape2" ("ball-red" "ball-yellow" "ball-green" "ball-blue"))
-    ("number1" ("number-comic-1""number-comic-2""number-comic-3" "number-comic-4"))
+    ("shape2" ("ball-red" "ball-yellow" "ball-green"
+               "ball-blue" "ball-magenta" "ball-orange"
+               "ball-purple" "ball-gray" "ball-green2"))
+    ("number1" ("number-comic-1" "number-comic-2" "number-comic-3"
+                "number-comic-4" "number-comic-5" "number-comic-6"
+                "number-comic-7" "number-comic-8" "number-comic-9"))
     ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
@@ -81,20 +86,17 @@
 (defvar *use-tile* t)
 (defvar *selected-tile-theme* "shape1")
 
-(defun load-images (theme-set)
-  (let ((theme-name (first theme-set))
-        (tile-image-names (second theme-set))
-        (tile-images '()))
-    (dotimes (idx (length tile-image-names))
-      (multiple-value-bind (array design)
-          (climi::xpm-parse-file (merge-pathnames
-                                  (make-pathname
-                                   :directory `(:relative ,theme-name)
-                                   :name (nth idx tile-image-names)
-                                   :type "xpm")
-                                  sudoku.system::*images-path*))
-        (push (list idx array design) tile-images)))
-    (cons theme-name tile-images)))
+(defun load-images (theme-name)
+  (let ((tile-images '()))
+    (dolist (path (directory
+                   (merge-pathnames
+                    (pathname (format nil "~A/s?-*.xpm" theme-name))
+                    sudoku.system::*images-path*)))
+      (let ((img-name (pathname-name path)))
+        (multiple-value-bind (array design)
+            (climi::xpm-parse-file path)
+          (push (list img-name array design) tile-images))))
+    (cons theme-name (nreverse tile-images))))
 
 (defun load-msg-images ()
   (let ((msg-images '()))
@@ -114,6 +116,15 @@
     (dolist (theme themes)
       (push (load-images theme) images-all))
     images-all))
+
+(defun pick-image (val)
+  (let ((img-name (nth (1- val)
+                       (second (assoc *selected-tile-theme* *tile-themes* :test 'equal))))
+        (game-size (size (car (rec-playing *game-record*)))))
+    (cdr (find-if #'(lambda (x) (equal (car x)
+                                       (format nil "s~A-~A" game-size img-name)))
+                  (cdr (assoc *selected-tile-theme*
+                              *tile-images* :test 'equal))))))
 
 ;; functions
 
@@ -225,24 +236,37 @@
 
 ;; display
 
-(defun draw-tile (val x y &optional (in-tile-sel nil))
-  (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
-         (img (cdr (assoc (1- val) (cdr (assoc *selected-tile-theme*
-                                               *tile-images* :test 'equal)))))
+(defun draw-tile (val x y &key (in-tile-sel nil) (mask-p nil))
+  (let* ((game-size (size (car (rec-playing *game-record*))))
+         (cell-size (/ *board-size* game-size))
+         (img (pick-image val))
          (img-array (first img))
-         (img-design (second img))) 
-    (draw-rectangle* *standard-output*
-                     (+ x *cell-gap*)
-                     (+ y *cell-gap*)
-                     (+ x (- cell-size *cell-gap*))
-                     (+ y (- cell-size *cell-gap*))
-                     :filled (if (and in-tile-sel (eql val *selected-input-val*)) t nil)
-                     :ink (if (and in-tile-sel (eql val *selected-input-val*))
-                              (colors-tile-sel *colors*) nil))
-    (draw-pattern* *standard-output*
-                   (make-pattern img-array img-design)
-                   (+ x (* 0.5 (- cell-size (array-dimension img-array 1))))
-                   (+ y (* 0.5 (- cell-size (array-dimension img-array 0)))))))
+         (img-design (second img)))
+    (debug-msg "[draw-tile] ~A ~A ~A ~A~%" game-size *selected-tile-theme*
+               (null img-array) (null img-design))
+    (cond
+      ((and *use-tile* img-array img-design)
+       (draw-rectangle* *standard-output*
+                        (+ x *cell-gap*)
+                        (+ y *cell-gap*)
+                        (+ x (- cell-size *cell-gap*))
+                        (+ y (- cell-size *cell-gap*))
+                        :filled (if (and in-tile-sel (eql val *selected-input-val*)) t nil)
+                        :ink (if (and in-tile-sel (eql val *selected-input-val*))
+                                 (colors-tile-sel *colors*) nil))
+       (draw-pattern* *standard-output*
+                      (make-pattern img-array img-design)
+                      (+ x (* 0.5 (- cell-size (array-dimension img-array 1))))
+                      (+ y (* 0.5 (- cell-size (array-dimension img-array 0))))))
+      (t
+       (draw-text* *standard-output* (format nil "~A" val)
+                   (+ x (/ cell-size 2))
+                   (+ y (/ cell-size 2))
+                   :align-x :center :align-y :center
+                   :text-size (truncate (/ cell-size 2))
+                   :ink (if mask-p
+                            (colors-cell-text-mask *colors*)
+                            (colors-cell-text-open *colors*)))))))
 
 (defun make-cell (row col &optional err)
   (let* ((game (car (rec-playing *game-record*)))
@@ -274,18 +298,10 @@
                                  (colors-cell-mask *colors*)
                                  (colors-cell-open *colors*)))))
               (when (> val 0)
-                (if *use-tile*
-                    (draw-tile val
-                               (+ *board-margin* (* col cell-size))
-                               (+ *board-margin* (* row cell-size)))
-                    (draw-text* *standard-output* (format nil "~A" val)
-                                (+ *board-margin* (* col cell-size) (/ cell-size 2))
-                                (+ *board-margin* (* row cell-size) (/ cell-size 2))
-                                :align-x :center :align-y :center
-                                :text-size (truncate (/ cell-size 2))
-                                :ink (if (mask-p row col)
-                                         (colors-cell-text-mask *colors*)
-                                         (colors-cell-text-open *colors*)))))
+                (draw-tile val
+                           (+ *board-margin* (* col cell-size))
+                           (+ *board-margin* (* row cell-size))
+                           :mask-p (mask-p row col)))
               (when (memo game)
                 (let ((m (aref (memo game) row col)))
                   (when m
@@ -323,7 +339,7 @@
     (with-output-as-presentation
         (*standard-output* (make-instance 'tile :val val :x x :y y) 'tile)
       (if *use-tile*
-          (draw-tile val x y t)
+          (draw-tile val x y :in-tile-sel t)
           (progn
             (draw-rectangle* *standard-output*
                              (+ x *cell-gap*)
@@ -498,8 +514,6 @@
                  (append (cdr (rec-playing *game-record*))
                          (list (car (rec-playing *game-record*)))))
            (setf playing (car (rec-playing *game-record*)))))
-    (unless (<= (size playing) 4)
-      (setf *use-tile* nil))
     (display-sudoku-board *sudoku-frame* stream)
     (when (output-record-p *game-output-record*)
       (erase-output-record *game-output-record* stream nil))
@@ -559,8 +573,6 @@
     (setf (nr *game-record*) nr)
     (setf (nc *game-record*) nc)
     (setf *selected-input-val* nil)
-    (unless (<= (* nr nc) 4)
-      (setf *use-tile* nil))
     (check-level)
     (erase-all-outputs)
     (com-start)))
@@ -580,7 +592,7 @@
             :default 2
             :prompt "Style")
      (img-name 'string :default "shape1"))
-  (cond ((and (eql style 2) (<= (* (nr *game-record*) (nc *game-record*)) 4))
+  (cond ((eql style 2)
          (setf *use-tile* t)
          (when img-name
            (setf *selected-tile-theme* img-name)))
@@ -725,7 +737,7 @@
   (run-frame-top-level *sudoku-frame*))
 
 (eval-when (:load-toplevel)
-  (setf *tile-images* (load-images-all *tile-themes*))
+  (setf *tile-images* (load-images-all (mapcar #'car *tile-themes*)))
   (setf *msg-images* (load-msg-images)))
 
 
