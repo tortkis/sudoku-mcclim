@@ -76,8 +76,11 @@
       lis))
 
 (defun set-cell-in-block (tbl nr nc blk-row blk-col row col val)
-  (unless (find-if #'(lambda (x) (>= x (* nr nc))) (list blk-row blk-col row col))
-    (setf (aref tbl (+ (* nr blk-row) row) (+ (* nc blk-col) col)) val)))
+  (cond ((find-if #'(lambda (x) (>= x (* nr nc))) (list blk-row blk-col row col))
+         nil)
+        (t (let ((tbl-new (make-sudoku-table nr nc tbl)))
+             (setf (aref tbl-new (+ (* nr blk-row) row) (+ (* nc blk-col) col)) val)
+             tbl-new))))
 
 (defun get-sub-block (tbl nr nc blk-row blk-col)
   (let ((lis '()))
@@ -86,58 +89,55 @@
         (dotimes (col nc)
           (push (aref tbl (+ (* nr blk-row) row) (+ (* nc blk-col) col)) lis)))
       (nreverse lis))))
+
+(defun make-num-blk-seq (nr nc)
+  (let ((num-blk-seq nil))
+    (dotimes (num (* nr nc))
+      (dotimes (blk-row nc)
+        (dotimes (blk-col nr)
+          (push (list (1+ num) blk-row blk-col) num-blk-seq))))
+    (nreverse num-blk-seq)))
                       
 (defun make-sudoku-table-1 (nr nc &optional initial-tbl-lis)
   "Return a list with a valid sudoku table and partial (incomplete) sudoku tables.
    If initial-tbl-lis is specified, it is used as the initial table,
    starting with the first one."
-  (let ((tbl-lis (or initial-tbl-lis
-                     (list (list (make-sudoku-table nr nc) -1 -1 -1)))))
-    ;; tbl-lis item: table num blk-row blk-col
-    (do ((num 1 (1+ num)))
-        ((> num (* nr nc)) tbl-lis)
-      (do ((blk-row 0 (1+ blk-row)))
-          ((>= blk-row nc))
-        (do ((blk-col 0 (1+ blk-col)))
-            ((>= blk-col nr))
-          (labels ((next-fill (tbl-lis)
-                     (cond ((null tbl-lis) nil)
-                           (t (let* ((tbl-start-set (car tbl-lis))
-                                     (tbl-start (first tbl-start-set))
-                                     (num-prev (second tbl-start-set))
-                                     (blk-row-prev (third tbl-start-set))
-                                     (blk-col-prev (fourth tbl-start-set))
-                                     (tbl-lis-add '()))
-                                (unless (or (< num-prev 0) (< blk-row-prev 0) (< blk-col-prev 0))
-                                  (setf num (if (and (= blk-row-prev (1- nc))
-                                                     (= blk-col-prev (1- nr)))
-                                                (1+ num-prev)
-                                                num-prev))
-                                  (setf blk-row (if (= blk-col-prev (1- nr))
-                                                    (if (= blk-row-prev (1- nc))
-                                                        0
-                                                        (1+ blk-row-prev))
-                                                    blk-row-prev))
-                                  (setf blk-col (if (< blk-col-prev (1- nr))
-                                                    (1+ blk-col-prev)
-                                                    0)))
-                                (cond
-                                  ((find num (get-sub-block tbl-start nr nc blk-row blk-col))
-                                   (cons (list tbl-start num blk-row blk-col)
-                                         (cdr tbl-lis)))
-                                  (t (dolist (avail-cell (random-sort
-                                                          (blank-cells-in-block
-                                                           tbl-start nr nc blk-row blk-col num)))
-                                       (when avail-cell
-                                         (let ((tbl-new (make-sudoku-table nr nc tbl-start)))
-                                           (set-cell-in-block
-                                            tbl-new nr nc blk-row blk-col
-                                            (first avail-cell) (second avail-cell) num)
-                                           (push (list tbl-new num blk-row blk-col) tbl-lis-add))))
-                                     (if tbl-lis-add
-                                         (append tbl-lis-add (cdr tbl-lis))
-                                         (next-fill (cdr tbl-lis))))))))))
-            (setf tbl-lis (next-fill tbl-lis))))))))
+  (let ((num-blk-seq (make-num-blk-seq nr nc)))
+    (labels ((next-fill (tbl-lis idx)
+               ;; tbl-lis item: table num blk-row blk-col
+               (cond ((null tbl-lis) nil)
+                     ((>= idx (length num-blk-seq)) tbl-lis)
+                     (t (let* ((tbl-start-set (car tbl-lis))
+                               (tbl-start (car tbl-start-set))
+                               (idx-prev (position (subseq tbl-start-set 1 4)
+                                                   num-blk-seq :test 'equal))
+                               (tbl-lis-add '()))
+                          (when (numberp idx-prev)
+                            (setf idx (1+ idx-prev)))
+                          (let* ((num-blk-next (nth idx num-blk-seq))
+                                 (num (car num-blk-next))
+                                 (blk-row (cadr num-blk-next))
+                                 (blk-col (caddr num-blk-next)))
+                            (cond
+                              ((find num (get-sub-block tbl-start nr nc blk-row blk-col))
+                               (next-fill (cons (list tbl-start num blk-row blk-col)
+                                                (cdr tbl-lis))
+                                          (1+ idx)))
+                              (t (dolist (avail-cell (random-sort
+                                                      (blank-cells-in-block
+                                                       tbl-start nr nc blk-row blk-col num)))
+                                   (push (list (set-cell-in-block tbl-start
+                                                                  nr nc blk-row blk-col
+                                                                  (first avail-cell) (second avail-cell) num)
+                                               num blk-row blk-col)
+                                         tbl-lis-add))
+                                 (next-fill (if tbl-lis-add
+                                                (append tbl-lis-add (cdr tbl-lis))
+                                                (cdr tbl-lis))
+                                            (1+ idx))))))))))
+      (next-fill (or initial-tbl-lis
+                     (list (list (make-sudoku-table nr nc) -1 -1 -1)))
+                 0))))
 
 (defun make-multiple-sudoku-table (nr nc c &optional initial-tbl-lis)
   "Make a list of c tables of (nr x nc)^2 sudoku, starting with initial-tbl-lis if specified.
@@ -289,43 +289,6 @@
                   (aref tbl row col)))))
     tbl-new))
 
-(defun get-cell-with-num (s-tbl m-tbl num &optional row-lis col-lis)
-  (let ((lis-nil '())
-        (lis-masked '())
-        (lis-open '()))
-    (dotimes (row (array-dimension s-tbl 0))
-      (dotimes (col (array-dimension s-tbl 1))
-        (when (and (eql (aref s-tbl row col) num)
-                   (or (and (not row-lis) (not col-lis))
-                       (and row-lis (find row row-lis))
-                       (and col-lis (find col col-lis))))
-          (let ((cell (aref m-tbl row col)))
-            (cond ((null cell)
-                   (push (list row col) lis-nil))
-                  ((eql cell 1)
-                   (push (list row col) lis-masked))
-                  ((eql cell 0)
-                   (push (list row col) lis-open)))))))
-    (values lis-nil lis-masked lis-open)))
-
-(defun get-row-col-by-cond-in-block (m-tbl nr nc excl-row excl-col cond-fun)
-  (let* ((row-lis '())
-         (col-lis '())
-         (row0 (* nr (truncate (/ excl-row nr))))
-         (row1 (+ row0 nr))
-         (col0 (* nc (truncate (/ excl-col nc))))
-         (col1 (+ col0 nc)))
-    (do ((row row0 (1+ row)))
-        ((>= row row1))
-      (when (and (not (= row excl-row))
-                 (funcall cond-fun (subseq (get-row m-tbl row) col0 col1)))
-        (push row row-lis)))
-    (do ((col col0 (1+ col)))
-        ((>= col col1) (list row-lis col-lis))
-      (when (and (not (= col excl-col))
-                 (funcall cond-fun (subseq (get-col m-tbl col) row0 row1)))
-        (push col col-lis)))))
-
 (defun solve-sudoku (s nr nc)
   (let ((res (make-multiple-sudoku-table
               nr nc 2 (list (list s -1 -1 -1)))))
@@ -336,50 +299,7 @@
 (defun make-sudoku-mask (s-tbl nr nc mask-n)
   (let* ((size (array-dimension s-tbl 0))
          (m-tbl (make-array (list size size)
-                            :initial-element nil))
-         (prev-m-tbl nil)
-         (num-seq '())
-         (num nil)
-         (mask-cnt mask-n))
-    (do ()
-        ((or (<= mask-cnt 0)
-             (and (null num-seq)
-                  prev-m-tbl
-                  (= (length (blank-cells m-tbl)) (length (blank-cells prev-m-tbl)))))
-             ;;(= (reduce #'+ (count-table m-tbl)) (apply #'* (array-dimensions m-tbl))))
-         (dotimes (r (array-dimension m-tbl 0))
-           (dotimes (c (array-dimension m-tbl 1))
-             (when (null (aref m-tbl r c))
-               (setf (aref m-tbl r c) 0)))))
-      (when (null num-seq)
-        (setf num-seq (make-random-num-seq (* nr nc)))
-        (setf prev-m-tbl (make-array (list size size)
-                                     :displaced-to (copy-seq (make-array (expt size 2)
-                                                                         :displaced-to m-tbl)))))
-      (setf num (pop num-seq))
-      (multiple-value-bind
-            (hide-cell-lis-nil hide-cell-lis-masked hide-cell-lis-open)
-          (get-cell-with-num s-tbl m-tbl num)
-        (dolist (hide-cell (append (random-sort hide-cell-lis-nil)
-                                   (random-sort hide-cell-lis-masked)
-                                   (random-sort hide-cell-lis-open)))
-          (let* ((hide-cell-r (first hide-cell))
-                 (hide-cell-c (second hide-cell)))
-            (when (and (> mask-cnt 0)
-                       hide-cell
-                       (not (eql (aref m-tbl hide-cell-r hide-cell-c) 0)))
-              (when (not (eql (aref m-tbl hide-cell-r hide-cell-c) 1))
-                (decf mask-cnt))
-              (setf (aref m-tbl hide-cell-r hide-cell-c) 1) ; mask
-              (dolist (other-open-cell
-                        (apply #'get-cell-with-num
-                               s-tbl m-tbl num
-                               (get-row-col-by-cond-in-block
-                                m-tbl nr nc hide-cell-r hide-cell-c
-                                #'(lambda (seq)
-                                    (position-if #'(lambda (x) (or (eql x 1) (null x))) seq)))))
-                (setf (aref m-tbl (first other-open-cell) (second other-open-cell)) 0)))))))
-        
+                            :initial-element 0)))
     ;; try to find cells which can be masked as many as possible
     (let ((rc-lis (random-sort (filter-table m-tbl #'(lambda (x) (eql x 0))))))
       (dolist (rc rc-lis)
@@ -428,12 +348,5 @@
         (format t "==> ~A~%" (count-table v))
         (format t "~A~%" w)
         (return)))))
-;;;
-
-;;(defvar r)
-;;(setf r (create-new-games (make-instance 'sudoku-game-record) 3 3 51/81 5))
-;;(move-game r rec-new rec-playing)
-;;(print (table (car (rec-playing r))))
-;;(check (car (rec-playing r)))
 
 )
