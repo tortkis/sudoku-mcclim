@@ -63,6 +63,10 @@
     s))
 
 (defmethod add-memo ((s sudoku-game) row col m)
+  (let ((size (* (nr s) (nc s))))
+    (when (or (null (memo s))
+              (not (equal (array-dimensions (memo s)) (list size size))))
+      (setf (memo s) (make-array (list size size) :initial-element nil))))
   (setf (aref (memo s) row col) m))
 
 (defmethod clean-memo ((s sudoku-game))
