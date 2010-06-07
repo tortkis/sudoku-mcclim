@@ -550,10 +550,14 @@
             (set-cell game row col (empty-cell)))))
       (redraw-cells-all))))
 
-(define-sudoku-frame-command com-check ()
-  (run-frame-top-level
-   (make-application-frame 'check-frame
-                           :calling-frame *sudoku-frame*)))
+(let ((checking-p nil))
+  (define-sudoku-frame-command com-check ()
+    (unless checking-p
+      (setf checking-p t)
+      (run-frame-top-level
+       (make-application-frame 'check-frame
+                               :calling-frame *sudoku-frame*))
+      (setf checking-p nil))))
 
 (defun check-level ()
   (let ((level (level *game-record*))
