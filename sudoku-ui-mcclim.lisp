@@ -79,8 +79,8 @@
                 "number-comic-4" "number-comic-5" "number-comic-6"
                 "number-comic-7" "number-comic-8" "number-comic-9"))
     ("keroro" ("keroro" "giroro" "tamama" "kururu"))
-    ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
-    ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
+    ;;("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
+    ("fruits" ("RedApple" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
 (defvar *tile-images* nil)
 (defvar *msg-images* nil)
@@ -650,7 +650,8 @@
                             ("Image(shape1)" :command (com-style 2 "shape1"))
                             ("Image(ball)" :command (com-style 2 "shape2"))
                             ("Image(keroro)" :command (com-style 2 "keroro"))
-                            ("Image(animals)" :command (com-style 2 "func-animals"))))
+                            ;;("Image(animals)" :command (com-style 2 "func-animals"))
+                            ("Image(fruits)" :command (com-style 2 "fruits"))))
 
 (make-command-table 'game-command-table
                     :errorp nil
