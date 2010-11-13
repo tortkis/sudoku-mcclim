@@ -78,6 +78,7 @@
     ("number1" ("number-comic-1" "number-comic-2" "number-comic-3"
                 "number-comic-4" "number-comic-5" "number-comic-6"
                 "number-comic-7" "number-comic-8" "number-comic-9"))
+    ("keroro" ("keroro" "giroro" "tamama" "kururu"))
     ("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple2x" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
@@ -648,6 +649,7 @@
                             ("Number(comic)" :command (com-style 2 "number1"))
                             ("Image(shape1)" :command (com-style 2 "shape1"))
                             ("Image(ball)" :command (com-style 2 "shape2"))
+                            ("Image(keroro)" :command (com-style 2 "keroro"))
                             ("Image(animals)" :command (com-style 2 "func-animals"))))
 
 (make-command-table 'game-command-table
@@ -751,7 +753,8 @@
   (setf *selected-input-val* nil)
   (setf *making-memo-p* nil)
   (setf *game-record* (load-sudoku-game-record (sudoku-record-file)))
-  (if (not (valid-sudoku-game-record-p *game-record*))
+  (if (not (and *game-record*
+                (valid-sudoku-game-record-p *game-record*)))
       (setf *game-record* (make-instance 'sudoku-game-record)))
   (setf *sudoku-frame* (make-application-frame 'sudoku-frame))
   (unless *keep-playing-record*
