@@ -78,7 +78,7 @@
     ("number1" ("number-comic-1" "number-comic-2" "number-comic-3"
                 "number-comic-4" "number-comic-5" "number-comic-6"
                 "number-comic-7" "number-comic-8" "number-comic-9"))
-    ("keroro" ("keroro" "giroro" "tamama" "kururu"))
+    ("k66" ("k66" "g66" "tmm" "966"))
     ;;("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
     ("fruits" ("RedApple" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
@@ -649,7 +649,7 @@
                             ("Number(comic)" :command (com-style 2 "number1"))
                             ("Image(shape1)" :command (com-style 2 "shape1"))
                             ("Image(ball)" :command (com-style 2 "shape2"))
-                            ("Image(keroro)" :command (com-style 2 "keroro"))
+                            ("Image(k66)" :command (com-style 2 "k66"))
                             ;;("Image(animals)" :command (com-style 2 "func-animals"))
                             ("Image(fruits)" :command (com-style 2 "fruits"))))
 
