@@ -36,6 +36,7 @@
 (defvar *keep-playing-record* nil)
 (defvar *debug-output-p* nil)
 (defvar *making-memo-p* nil)
+(defvar *entering-p* nil)
 
 ;; colors
 
@@ -64,7 +65,7 @@
    :cell-open-sel (rgb-color #X40e0d0)
    :cell-open-err +magenta+
    :cell-mask (rgb-color #X4682b4) ; (rgb-color #X87ceeb)
-   :cell-mask-sel +white+
+   :cell-mask-sel (rgb-color #X264661) ; +white+
    :cell-mask-err +red+
    :tile-sel +blue+))
 
@@ -118,14 +119,27 @@
       (push (load-images theme) images-all))
     images-all))
 
+(defun image-size-list ()
+  (remove-duplicates (mapcar #'(lambda (x)
+                                 (parse-integer (subseq (car x) 1) :junk-allowed t))
+                             (cdr (assoc *selected-tile-theme*
+                                         *tile-images* :test 'equal)))))
+
 (defun pick-image (val)
   (let ((img-name (nth (1- val)
                        (second (assoc *selected-tile-theme* *tile-themes* :test 'equal))))
-        (game-size (size (car (rec-playing *game-record*)))))
-    (cdr (find-if #'(lambda (x) (equal (car x)
-                                       (format nil "s~A-~A" game-size img-name)))
-                  (cdr (assoc *selected-tile-theme*
-                              *tile-images* :test 'equal))))))
+        (game-size (size (car (rec-playing *game-record*))))
+        (sizes (image-size-list)))
+    (unless (find game-size sizes)
+      (let ((larger-sizes (remove-if #'(lambda (x) (< x game-size)) sizes)))
+        (setf game-size (if larger-sizes
+                            (apply #'min larger-sizes)
+                            nil))))
+    (when game-size
+      (cdr (find-if #'(lambda (x) (equal (car x)
+                                         (format nil "s~A-~A" game-size img-name)))
+                    (cdr (assoc *selected-tile-theme*
+                                *tile-images* :test 'equal)))))))
 
 ;; functions
 
@@ -243,8 +257,8 @@
          (img (pick-image val))
          (img-array (first img))
          (img-design (second img)))
-    (debug-msg "[draw-tile] ~A ~A ~A ~A~%" game-size *selected-tile-theme*
-               (null img-array) (null img-design))
+    (debug-msg "[draw-tile] ~A ~A (~A) ~A ~A~%" game-size *selected-tile-theme*
+               val (null img-array) (null img-design))
     (cond
       ((and *use-tile* img-array img-design)
        (draw-rectangle* *standard-output*
@@ -444,8 +458,7 @@
       (when (and img-array img-design)
         (draw-pattern* stream
                        (make-pattern img-array img-design)
-                       0 0)))
-    ))
+                       0 0)))))
 
 ;; actions
 
@@ -587,6 +600,25 @@
     (erase-all-outputs)
     (com-start)))
 
+(define-sudoku-frame-command com-size-set ()
+  (let ((str (get-frame-pane *sudoku-frame* 'memo-pane))
+        nr nc)
+    (setf *entering-p* t)
+    (window-clear str)
+    (move-game *game-record* rec-playing rec-new)
+    (setf nr (parse-integer (accept 'string :stream str :prompt "row# in block") :junk-allowed t))
+    (window-clear str)
+    (setf nc (parse-integer (accept 'string :stream str :prompt "col# in block") :junk-allowed t))
+    (window-clear str)
+    (setf *entering-p* nil)
+    (when (and nr nc (<= 4 (* nr nc) 16))
+      (setf (nr *game-record*) nr)
+      (setf (nc *game-record*) nc))
+    (setf *selected-input-val* nil)
+    (check-level)
+    (erase-all-outputs)
+    (com-start)))
+
 (define-sudoku-frame-command com-level
     ((level 'interger :default 0.5 :prompt "Level"))
   (let ((orig-level (level *game-record*)))
@@ -634,7 +666,8 @@
                             ("(2x3)^2" :command (com-size 2 3))
                             ("(4x2)^2" :command (com-size 4 2))
                             ("(3x3)^2" :command (com-size 3 3))
-                            ("(4x4)^2" :command (com-size 4 4))))
+                            ("(4x4)^2" :command (com-size 4 4))
+                            ("(mxn)^2..." :command (com-size-set))))
 
 (make-command-table 'level-command-table
                     :errorp nil
@@ -684,7 +717,9 @@
          (prev-row (first *selected-cell*))
          (prev-col (second *selected-cell*))
          (memo nil))
-    (cond ((equal (symbol-name key-name) "ESCAPE")
+    (cond (*entering-p*
+           nil)
+          ((equal (symbol-name key-name) "ESCAPE")
            (let ((str (get-frame-pane *sudoku-frame* 'memo-pane)))
              (setf *making-memo-p* nil)
              (window-clear str))
