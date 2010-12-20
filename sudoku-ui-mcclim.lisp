@@ -72,17 +72,17 @@
 
 ;; images
 
-(defparameter *tile-themes*
-  '(("shape1" ("circle1" "star2" "square1" "triangle2"))
-    ("shape2" ("ball-red" "ball-yellow" "ball-green"
-               "ball-blue" "ball-magenta" "ball-orange"
-               "ball-purple" "ball-gray" "ball-green2"))
-    ("number1" ("number-comic-1" "number-comic-2" "number-comic-3"
+(defvar *tile-themes*
+  '(("Number(comic)" "number1" ("number-comic-1" "number-comic-2" "number-comic-3"
                 "number-comic-4" "number-comic-5" "number-comic-6"
                 "number-comic-7" "number-comic-8" "number-comic-9"))
-    ("k66" ("k66" "g66" "tmm" "966"))
-    ;;("func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
-    ("fruits" ("RedApple" "Strawberry" "Orange" "Pear"))))
+    ("Image(shape1)" "shape1" ("circle1" "star2" "square1" "triangle2"))
+    ("Image(ball)" "shape2" ("ball-red" "ball-yellow" "ball-green"
+                             "ball-blue" "ball-magenta" "ball-orange"
+                             "ball-purple" "ball-gray" "ball-green2"))
+    ("Image(k66)" "k66" ("k66" "g66" "tmm" "966"))
+    ;;("Image(animals)" "func-animals" ("Woof2x" "RedDog" "Pointy" "Doggie"))
+    ("Image(fruits)" "fruits" ("RedApple" "Strawberry" "Orange" "Pear"))))
 (defparameter *msg-names* '("msg-correct2" "msg-incorrect2"))
 (defvar *tile-images* nil)
 (defvar *msg-images* nil)
@@ -128,7 +128,8 @@
 
 (defun pick-image (val)
   (let ((img-name (nth (1- val)
-                       (second (assoc *selected-tile-theme* *tile-themes* :test 'equal))))
+                       (third (find *selected-tile-theme* *tile-themes*
+                                    :test 'equal :key 'cadr))))
         (game-size (size (car (rec-playing *game-record*))))
         (sizes (image-size-list)))
     (unless (find game-size sizes)
@@ -430,9 +431,9 @@
                                      ((<= (game-level game) 0.74) "difficult")
                                      (t "very difficult"))
                                (length (remove-if-not
-                                        #'(lambda (x) (and (eql (game-nr game) (rec-nr x))
-                                                           (eql (game-nc game) (rec-nc x))
-                                                           (eql (game-level game) (rec-level x))))
+                                        #'(lambda (x) (and (eql (game-nr game) (game-nr x))
+                                                           (eql (game-nc game) (game-nc x))
+                                                           (eql (game-level game) (game-level x))))
                                         (rec-new *game-record*))))
                 0 (truncate (/ *info-height* 2))
                 :align-x :left :align-y :center
@@ -661,6 +662,23 @@
     (debug-msg "[history] ~A: ~A~%" (game-history-pointer game) (game-history game))))
 
 
+(defmacro make-style-menu ()
+  `(make-command-table 'style-command-table
+                       :errorp nil
+                       :menu `(("Number" :command (com-style 1 ""))
+                               ,@(mapcar #'(lambda (img)
+                                             `(,(car img) :command (com-style 2 ,(cadr img))))
+                                         *tile-themes*))))
+
+(defun add-image (image-def)
+  ;; image-def: name-on-menu image-dir list-of-images
+  ;;   example: '("Image(animals)" "animals" ("cat" "dog" "monkey" "bird"))
+  (push image-def *tile-themes*)
+  (setf *tile-images* (append (load-images-all (list (cadr image-def))) *tile-images*))
+  (make-style-menu))
+
+(make-style-menu)
+
 (make-command-table 'size-command-table
                     :errorp nil
                     :menu '(("(2x2)^2" :command (com-size 2 2))
@@ -676,16 +694,6 @@
                             ("Medium" :command com-level-medium)
                             ("Difficult" :command com-level-difficult)
                             ("Very Difficult" :command com-level-very-difficult)))
-
-(make-command-table 'style-command-table
-                    :errorp nil
-                    :menu '(("Number" :command (com-style 1 ""))
-                            ("Number(comic)" :command (com-style 2 "number1"))
-                            ("Image(shape1)" :command (com-style 2 "shape1"))
-                            ("Image(ball)" :command (com-style 2 "shape2"))
-                            ("Image(k66)" :command (com-style 2 "k66"))
-                            ;;("Image(animals)" :command (com-style 2 "func-animals"))
-                            ("Image(fruits)" :command (com-style 2 "fruits"))))
 
 (make-command-table 'game-command-table
                     :errorp nil
@@ -803,7 +811,7 @@
   (run-frame-top-level *sudoku-frame*))
 
 (eval-when (:load-toplevel)
-  (setf *tile-images* (load-images-all (mapcar #'car *tile-themes*)))
+  (setf *tile-images* (load-images-all (mapcar #'cadr *tile-themes*)))
   (setf *msg-images* (load-msg-images)))
 
 

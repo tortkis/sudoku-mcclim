@@ -57,4 +57,7 @@
 
 (defpackage :sudoku-mcclim
   (:use :clim :clim-lisp :clim-internals
-        :sudoku :sudoku-control :sudoku.system))
+        :sudoku :sudoku-control :sudoku.system)
+  (:export
+   :run
+   :add-image))

@@ -1,19 +1,62 @@
 Overview:
 
-  This is a collection of sudoku programs for Common Lisp:
-  - sudoku.lisp ............. core functions
-  - sudoku-control.lisp ..... functions for playing game (CUI)
-  - sudoku-ui-mcclim.lisp ... GUI for McCLIM
+  This is a collection of sudoku functions for Common Lisp:
+
+  * sudoku.lisp ............. core functions
+  * sudoku-control.lisp ..... functions for playing games
+  * sudoku-ui-mcclim.lisp ... GUI for McCLIM
+
+  The program can generate and solve any size of sudoku ((m*n)^2),
+  where m and n are the number of rows and columns of a block,
+  respectively, and the number of total rows/columns is m*n.  It can
+  generate large sizes of sudoku such as (4*4)^2 or (5*5)^2 if the
+  number of masks is small.  However, since the algorithm is simple,
+  it takes too long time for tables larger than (3*3)^2 if mask number
+  is large.  I created this program for my son to play with smaller
+  sudoku such as (2*2)^2 or (3*2)^2.
 
 Usage:
 
-  - Put a symbolic link to sudoku-mcclim.asd in an ASDF system directory.
-  - load ASDF.
-  - start the program.
+  * Put a symbolic link to sudoku-mcclim.asd in an ASDF system
+    directory.
+  * load ASDF.
+  * start GUI.
     (asdf:oos 'asdf:load-op 'sudoku-mcclim)
-    (sudoku-mcclim::run)
+    (sudoku-mcclim:run)
 
 Licence:
 
   See LICENCE file.
 
+Notes:
+
+  * This program uses images included in Gimp: Logos of "Basic I" &
+    "Comic Book".
+
+  * As you see, the images are very primitive, except that came from
+    Gimp ("Number(Comic)" in Style and Check messages).  You can add
+    your images for cells.
+
+    - Create a directory under images.
+
+      $ cd images
+      $ mkdir <your-image-dir>
+
+    - Put 100-pixel x 100-pixel xpm images under the directory, at
+      least 4 of them, whose names are "s4-<image-name>.xpm".
+
+      $ cp <somewhere>/s4-*.xpm <your-image-dir>/
+
+    - Run resize-sudoku-images.lisp.  It creates images for sudoku
+      with sizes of 6^2, 8^2 and 9^2.
+
+      $ ./resize-sudoku-images.lisp <your-image-dir>
+
+    - Add images to Style menu.  For example, if you created
+      s*-cat.xpm, s*-dog.xpm, s*-monkey.xpm and s*-bird.xpm under
+      images/animals directory:
+
+      (sudoku-mcclim:add-image
+       '("Image(animals)" "animals" ("cat" "dog" "monkey" "bird")))
+
+      then, "Image(animals)" will appear in Style menu.

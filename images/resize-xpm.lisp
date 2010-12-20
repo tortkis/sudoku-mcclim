@@ -195,16 +195,3 @@
                    :colors (colors cs)
                    :pixels pixels-new)))
                    
-
-;;(dolist (path (directory (pathname "/Users/torutakaishi/cl/sudoku/images/*/s4-*.xpm")))
-;;  (let ((xpm (make-instance 'xpm))
-;;        (xpm-resized nil))
-;;    (read-xpm xpm path)
-;;    (dolist (size '(6 8 9))
-;;      (let ((path-new (make-pathname
-;;                       :directory (pathname-directory path)
-;;                       :name (format nil "s~A-~A" size (subseq (pathname-name path) 3))
-;;                       :type (pathname-type path))))
-;;        (unless (probe-file path-new)
-;;          (setf xpm-resized (resize xpm (/ 4 size) (/ 4 size)))
-;;          (write-xpm xpm-resized path-new))))))

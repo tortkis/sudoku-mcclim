@@ -12,7 +12,8 @@ exec sbcl --noinform --load $0 --end-toplevel-options "$@"
                     (directory (pathname (format nil "~A*/s4-*.xpm" *default-pathname-defaults*)))
                     (apply #'append
                            (mapcar #'(lambda (x)
-                                       (directory (pathname (format nil "~A~A/s4-*.xpm" *default-pathname-defaults* x))))
+                                       (directory (pathname (format nil "~A~A/s4-*.xpm"
+                                                                    *default-pathname-defaults* x))))
                                    (cdr sb-ext:*posix-argv*))))))
   (dolist (path path-all)
     (format t "converting ~A~%" path)
