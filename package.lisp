@@ -39,18 +39,21 @@
    :valid-sudoku-game-record-p
    :pick-game-to-play
    ;; accessors of classes
-   :ans
-   :history
-   :history-pointer
-   :level
-   :mask
-   :memo
-   :nc
-   :nr
+   :game-ans
+   :game-history
+   :game-history-pointer
+   :game-level
+   :game-mask
+   :game-memo
+   :game-nc
+   :game-nr
+   :game-table
+   :rec-nc
+   :rec-nr
    :rec-done
    :rec-new
-   :rec-playing
-   :table))
+   :rec-level
+   :rec-playing))
 
 (defpackage :sudoku-mcclim
   (:use :clim :clim-lisp :clim-internals

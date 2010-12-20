@@ -1,3 +1,4 @@
+;;; sudoku mcclim
 
 (in-package :sudoku-mcclim)
 
@@ -154,7 +155,7 @@
          (truncate (* (/ (- x *board-margin*) *board-size*) (size game)))))))
 
 (defun mask-p (row col)
-  (> (aref (mask (car (rec-playing *game-record*))) row col) 0))
+  (> (aref (game-mask (car (rec-playing *game-record*))) row col) 0))
 
 (defun erase-all-outputs ()
   (let ((str (get-frame-pane *sudoku-frame* 'sudoku-pane)))
@@ -175,9 +176,9 @@
 (defclass debug-display-pane (clim-stream-pane) ())
 
 (defclass cell ()
-  ((row :accessor row :initarg :row)
-   (col :accessor col :initarg :col)
-   (val :accessor val :initarg :val))
+  ((row :accessor cell-row :initarg :row)
+   (col :accessor cell-col :initarg :col)
+   (val :accessor cell-val :initarg :val))
   (:default-initargs :val 0))
 
 (defclass cell-fixed (cell) ())
@@ -185,9 +186,9 @@
 (defclass cell-blank (cell) ())
 
 (defclass tile ()
-  ((val :accessor val :initarg :val)
-   (x :accessor x :initarg :x)
-   (y :accessor y :initarg :y)))
+  ((val :accessor tile-val :initarg :val)
+   (x :accessor tile-x :initarg :x)
+   (y :accessor tile-y :initarg :y)))
 
 ;; panes
 
@@ -317,8 +318,8 @@
                            (+ *board-margin* (* col cell-size))
                            (+ *board-margin* (* row cell-size))
                            :mask-p (mask-p row col)))
-              (when (memo game)
-                (let ((m (aref (memo game) row col)))
+              (when (game-memo game)
+                (let ((m (aref (game-memo game) row col)))
                   (when m
                     (draw-text* *standard-output* m
                                 (+ *board-margin* (* col cell-size) (* 1 *cell-gap*))
@@ -395,8 +396,8 @@
               (let ((x1 *board-margin*)
                     (x2 (+ *board-margin* (* i cell-size)))
                     (x3 (+ *board-margin* (* (size game) cell-size)))
-                    (th-h (if (zerop (mod i (nr game))) 5 1))
-                    (th-v (if (zerop (mod i (nc game))) 5 1)))
+                    (th-h (if (zerop (mod i (game-nr game))) 5 1))
+                    (th-v (if (zerop (mod i (game-nc game))) 5 1)))
                 (draw-line* stream x1 x2 x3 x2 :line-thickness th-h)
                 (draw-line* stream x2 x1 x2 x3 :line-thickness th-v)))
             (with-translation (stream 0 (+ *board-margin*
@@ -424,14 +425,14 @@
   (let ((game (car (rec-playing *game-record*))))
     (window-clear stream)
     (draw-text* stream (format nil "level: [~A]  games: [~A]"
-                               (cond ((<= (level game) 0.4) "easy")
-                                     ((<= (level game) 0.6) "medium")
-                                     ((<= (level game) 0.74) "difficult")
+                               (cond ((<= (game-level game) 0.4) "easy")
+                                     ((<= (game-level game) 0.6) "medium")
+                                     ((<= (game-level game) 0.74) "difficult")
                                      (t "very difficult"))
                                (length (remove-if-not
-                                        #'(lambda (x) (and (eql (nr game) (nr x))
-                                                           (eql (nc game) (nc x))
-                                                           (eql (level game) (level x))))
+                                        #'(lambda (x) (and (eql (game-nr game) (rec-nr x))
+                                                           (eql (game-nc game) (rec-nc x))
+                                                           (eql (game-level game) (rec-level x))))
                                         (rec-new *game-record*))))
                 0 (truncate (/ *info-height* 2))
                 :align-x :left :align-y :center
@@ -466,7 +467,7 @@
     ((tile 'tile)
      (x 'real) (y 'real))
   (declare (ignore x y))
-  (setf *selected-input-val* (val tile))
+  (setf *selected-input-val* (tile-val tile))
   (make-tile-all))
 
 (define-presentation-to-command-translator translator-dnd-tile
@@ -479,8 +480,8 @@
      (x 'real) (y 'real))
   (declare (ignore x y))
   (let* ((prev-row-col *selected-cell*)
-         (row (row object))
-         (col (col object))
+         (row (cell-row object))
+         (col (cell-col object))
          (game (car (rec-playing *game-record*))))
     (setf *selected-cell* (list row col))
     (when prev-row-col
@@ -491,7 +492,7 @@
     ;;(redraw-cells-all)
     (erase-cell row col)
     (make-cell row col)
-    (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
+    (debug-msg "[history] ~A: ~A~%" (game-history-pointer game) (game-history game))))
 
 (define-presentation-to-command-translator translator-click-cell
     (cell-blank com-click-cell sudoku-frame)
@@ -534,7 +535,7 @@
     (mapc #'(lambda (x) (erase-output-record (second x) stream nil))
           *game-output-record-cells*)
     (setf *game-output-record-cells* '())
-    (setf *selected-cell* (or (car (reverse (blank-cells (table playing))))
+    (setf *selected-cell* (or (car (reverse (blank-cells (game-table playing))))
                               '(0 0)))
     (setf *game-output-record*
           (with-new-output-record (stream)
@@ -557,11 +558,11 @@
 
 (define-sudoku-frame-command com-reset ()
   (let ((game (car (rec-playing *game-record*))))
-    (when (mask game)
+    (when (game-mask game)
       (dotimes (row (size game))
         (dotimes (col (size game))
-          (when (eql (aref (mask game) row col) 1)
-            (set-cell game row col (empty-cell)))))
+          (when (eql (aref (game-mask game) row col) 1)
+            (set-cell game row col empty-cell))))
       (redraw-cells-all))))
 
 (let ((checking-p nil))
@@ -574,13 +575,13 @@
       (setf checking-p nil))))
 
 (defun check-level ()
-  (let ((level (level *game-record*))
-        (game-size (* (nr *game-record*) (nc *game-record*))))
+  (let ((level (rec-level *game-record*))
+        (game-size (* (rec-nr *game-record*) (rec-nc *game-record*))))
     (setf (command-enabled 'com-level-very-difficult *sudoku-frame*) (<= game-size 6)
           (command-enabled 'com-level-difficult *sudoku-frame*) (<= game-size 9)
           (command-enabled 'com-level-medium *sudoku-frame*) (<= game-size 9)
           (command-enabled 'com-level-easy *sudoku-frame*) t)
-    (setf (level *game-record*)
+    (setf (rec-level *game-record*)
           (cond ((and (> level 51/81) (> game-size 6))
                  51/81)
                 ((and (> level 1/3) (> game-size 9))
@@ -590,11 +591,11 @@
 (define-sudoku-frame-command com-size
     ((nr 'integer :default 2 :prompt "Block Rows")
      (nc 'integer :default 2 :prompt "Block Columns"))
-  (unless (and (eql (nr *game-record*) nr)
-               (eql (nc *game-record*) nc))
+  (unless (and (eql (rec-nr *game-record*) nr)
+               (eql (rec-nc *game-record*) nc))
     (move-game *game-record* rec-playing rec-new)
-    (setf (nr *game-record*) nr)
-    (setf (nc *game-record*) nc)
+    (setf (rec-nr *game-record*) nr)
+    (setf (rec-nc *game-record*) nc)
     (setf *selected-input-val* nil)
     (check-level)
     (erase-all-outputs)
@@ -612,8 +613,8 @@
     (window-clear str)
     (setf *entering-p* nil)
     (when (and nr nc (<= 4 (* nr nc) 16))
-      (setf (nr *game-record*) nr)
-      (setf (nc *game-record*) nc))
+      (setf (rec-nr *game-record*) nr)
+      (setf (rec-nc *game-record*) nc))
     (setf *selected-input-val* nil)
     (check-level)
     (erase-all-outputs)
@@ -621,10 +622,10 @@
 
 (define-sudoku-frame-command com-level
     ((level 'interger :default 0.5 :prompt "Level"))
-  (let ((orig-level (level *game-record*)))
-    (setf (level *game-record*) level)
+  (let ((orig-level (rec-level *game-record*)))
+    (setf (rec-level *game-record*) level)
     (check-level)
-    (unless (eql orig-level (level *game-record*))
+    (unless (eql orig-level (rec-level *game-record*))
       (move-game *game-record* rec-playing rec-new)
       (erase-all-outputs)
       (com-start))))
@@ -651,13 +652,13 @@
   (let ((game (car (rec-playing *game-record*))))
     (undo game)
     (com-redraw)
-    (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
+    (debug-msg "[history] ~A: ~A~%" (game-history-pointer game) (game-history game))))
 
 (define-sudoku-frame-command com-redo ()
   (let ((game (car (rec-playing *game-record*))))
     (redo game)
     (com-redraw)
-    (debug-msg "[history] ~A: ~A~%" (history-pointer game) (history game))))
+    (debug-msg "[history] ~A: ~A~%" (game-history-pointer game) (game-history game))))
 
 
 (make-command-table 'size-command-table
@@ -732,9 +733,9 @@
           (*making-memo-p*
            nil)
           ((and (numberp val) (>= val 0) (<= val (size game))
-                (eql (aref (mask game) prev-row prev-col) 1))
+                (eql (aref (game-mask game) prev-row prev-col) 1))
            (set-cell game prev-row prev-col val)
-           (debug-msg "~A~%" (table game))
+           (debug-msg "~A~%" (game-table game))
            (erase-cell prev-row prev-col)
            (make-cell prev-row prev-col)
            (if (= val 0)
@@ -757,7 +758,7 @@
                (make-cell next-row next-col))))
           ;; memo
           ((and (string-equal (symbol-name key-name) "m")
-                (eql (aref (mask game) prev-row prev-col) 1))
+                (eql (aref (game-mask game) prev-row prev-col) 1))
            (let ((str (get-frame-pane *sudoku-frame* 'memo-pane)))
              (setf *making-memo-p* t)
              (window-clear str)
@@ -769,7 +770,7 @@
              (make-cell prev-row prev-col)))
           ;; deleting memo
           ((string-equal (symbol-name key-name) "d")
-           (setf (aref (memo game) prev-row prev-col) nil)
+           (setf (aref (game-memo game) prev-row prev-col) nil)
            (erase-cell prev-row prev-col)
            (make-cell prev-row prev-col)))))
 
