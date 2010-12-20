@@ -1,0 +1,19 @@
+Overview:
+
+  This is a collection of sudoku programs for Common Lisp:
+  - sudoku.lisp ............. core functions
+  - sudoku-control.lisp ..... functions for playing game (CUI)
+  - sudoku-ui-mcclim.lisp ... GUI for McCLIM
+
+Usage:
+
+  - Put a symbolic link to sudoku-mcclim.asd in an ASDF system directory.
+  - load ASDF.
+  - start the program.
+    (asdf:oos 'asdf:load-op 'sudoku-mcclim)
+    (sudoku-mcclim::run)
+
+Licence:
+
+  See LICENCE file.
+
