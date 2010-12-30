@@ -18,18 +18,18 @@
 
 (defmethod set-cell ((s sudoku-game) row col val)
   (setf (game-history s)
-        (cons (list row col val (aref (game-table s) row col))
+        (cons (list row col val (getcell (game-table s) row col))
               (if (>= (game-history-pointer s) (length (game-history s)))
                   '()
                   (subseq (game-history s) (game-history-pointer s)))))
   (setf (game-history-pointer s) 0)
-  (setf (aref (game-table s) row col) val))
+  (setcell (game-table s) row col val))
 
 (defmethod get-cell ((s sudoku-game) row col)
-  (aref (game-table s) row col))
+  (getcell (game-table s) row col))
 
 (defmethod check ((s sudoku-game))
-  (check-sudoku (game-table s) (game-nr s) (game-nc s)))
+  (check-sudoku (game-table s)))
 
 (defmethod undo ((s sudoku-game))
   (cond ((or (null (game-history s))
@@ -37,7 +37,7 @@
          nil)
         (t
          (let ((c (nth (game-history-pointer s) (game-history s))))
-           (setf (aref (game-table s) (first c) (second c)) (fourth c))
+           (setcell (game-table s) (first c) (second c) (fourth c))
            (incf (game-history-pointer s))))))
 
 (defmethod redo ((s sudoku-game))
@@ -46,14 +46,13 @@
         (t
          (decf (game-history-pointer s))
          (let ((c (nth (game-history-pointer s) (game-history s))))
-           (setf (aref (game-table s) (first c) (second c)) (third c))))))
+           (setcell (game-table s) (first c) (second c) (third c))))))
 
 (defmethod make-sudoku-game ((s sudoku-game))
   (setf (game-history s) nil)
   (multiple-value-bind (table ans mask)
       (make-sudoku-mask
-       (car (make-multiple-sudoku-table (game-nr s) (game-nc s) 1))
-       (game-nr s) (game-nc s)
+       (car (make-multiple-sudoku-table 1 (list (game-nr s) (game-nc s)) :random t))
        (truncate (* (expt (* (game-nr s) (game-nc s)) 2) (game-level s))))
     (setf (game-table s) table)
     (setf (game-ans s) ans)
@@ -103,12 +102,10 @@
              :memo memo
              :history history)))
     (if (and (numberp level) (numberp nr) (numberp nc)
-             (every #'(lambda (x) (and (arrayp x)
-                                       (= (length (array-dimensions x)) 2)
-                                       (= (array-dimension x 0) (* nr nc))
-                                       (= (array-dimension x 1) (* nr nc))))
+             (every #'(lambda (x) (and (eql (type-of x) 'stbl)
+                                       (= (table-dimension x 0) (* nr nc))))
                     (list table ans mask))
-             (string-equal (symbol-name (check-sudoku ans nr nc)) "CORRECT"))
+             (string-equal (symbol-name (check-sudoku ans)) "CORRECT"))
         s
         nil)))
 
@@ -123,15 +120,9 @@
    (nc :accessor rec-nc :initarg :nc :initform 2)))
 
 (defmethod game-exists-p ((r sudoku-game-record) tbl)
-  (let ((nr (array-dimension tbl 0))
-        (nc (array-dimension tbl 1)))
-    (find-if #'(lambda (x)
-                 (and (= (array-dimension x 0) nr)
-                      (= (array-dimension x 1) nc)
-                      (every #'eval (map 'vector #'eql
-                                         (make-array (* nr nc) :displaced-to x)
-                                         (make-array (* nr nc) :displaced-to tbl)))))
-             (mapcar #'game-ans (append (rec-playing r) (rec-new r) (rec-done r))))))
+  (some #'(lambda (x)
+            (compare-table tbl x))
+        (mapcar #'game-ans (append (rec-playing r) (rec-new r) (rec-done r)))))
 
 (defmethod create-new-games ((r sudoku-game-record) &key nr nc level (game-n 1))
   (when nr (setf (rec-nr r) nr))

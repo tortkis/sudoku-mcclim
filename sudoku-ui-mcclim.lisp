@@ -156,7 +156,7 @@
          (truncate (* (/ (- x *board-margin*) *board-size*) (size game)))))))
 
 (defun mask-p (row col)
-  (> (aref (game-mask (car (rec-playing *game-record*))) row col) 0))
+  (> (getcell (game-mask (car (rec-playing *game-record*))) row col) 0))
 
 (defun erase-all-outputs ()
   (let ((str (get-frame-pane *sudoku-frame* 'sudoku-pane)))
@@ -423,13 +423,15 @@
                   (draw-line* stream x2 x1 x2 x3 :line-thickness 1))))))))
 
 (defmethod display-info ((frame sudoku-frame) stream)
-  (let ((game (car (rec-playing *game-record*))))
+  (let* ((game (car (rec-playing *game-record*)))
+         (masked-num (count-masked-cells (game-mask game))))
     (window-clear stream)
-    (draw-text* stream (format nil "level: [~A]  games: [~A]"
+    (draw-text* stream (format nil "level: [~A(~A)]  games: [~A]"
                                (cond ((<= (game-level game) 0.4) "easy")
                                      ((<= (game-level game) 0.6) "medium")
                                      ((<= (game-level game) 0.74) "difficult")
                                      (t "very difficult"))
+                               masked-num
                                (length (remove-if-not
                                         #'(lambda (x) (and (eql (game-nr game) (game-nr x))
                                                            (eql (game-nc game) (game-nc x))
@@ -562,7 +564,7 @@
     (when (game-mask game)
       (dotimes (row (size game))
         (dotimes (col (size game))
-          (when (eql (aref (game-mask game) row col) 1)
+          (when (eql (getcell (game-mask game) row col) 1)
             (set-cell game row col empty-cell))))
       (redraw-cells-all))))
 
@@ -578,14 +580,12 @@
 (defun check-level ()
   (let ((level (rec-level *game-record*))
         (game-size (* (rec-nr *game-record*) (rec-nc *game-record*))))
-    (setf (command-enabled 'com-level-very-difficult *sudoku-frame*) (<= game-size 6)
+    (setf (command-enabled 'com-level-very-difficult *sudoku-frame*) (<= game-size 9)
           (command-enabled 'com-level-difficult *sudoku-frame*) (<= game-size 9)
-          (command-enabled 'com-level-medium *sudoku-frame*) (<= game-size 9)
+          (command-enabled 'com-level-medium *sudoku-frame*) (<= game-size 16)
           (command-enabled 'com-level-easy *sudoku-frame*) t)
     (setf (rec-level *game-record*)
-          (cond ((and (> level 51/81) (> game-size 6))
-                 51/81)
-                ((and (> level 1/3) (> game-size 9))
+          (cond ((and (> level 1/3) (> game-size 9))
                  1/3)
                 (t level)))))
 
@@ -685,7 +685,7 @@
                             ("(2x3)^2" :command (com-size 2 3))
                             ("(4x2)^2" :command (com-size 4 2))
                             ("(3x3)^2" :command (com-size 3 3))
-                            ("(4x4)^2" :command (com-size 4 4))
+                            ;;("(4x4)^2" :command (com-size 4 4))
                             ("(mxn)^2..." :command (com-size-set))))
 
 (make-command-table 'level-command-table
@@ -741,7 +741,7 @@
           (*making-memo-p*
            nil)
           ((and (numberp val) (>= val 0) (<= val (size game))
-                (eql (aref (game-mask game) prev-row prev-col) 1))
+                (eql (getcell (game-mask game) prev-row prev-col) 1))
            (set-cell game prev-row prev-col val)
            (debug-msg "~A~%" (game-table game))
            (erase-cell prev-row prev-col)
@@ -766,7 +766,7 @@
                (make-cell next-row next-col))))
           ;; memo
           ((and (string-equal (symbol-name key-name) "m")
-                (eql (aref (game-mask game) prev-row prev-col) 1))
+                (eql (getcell (game-mask game) prev-row prev-col) 1))
            (let ((str (get-frame-pane *sudoku-frame* 'memo-pane)))
              (setf *making-memo-p* t)
              (window-clear str)

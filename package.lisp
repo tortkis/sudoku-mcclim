@@ -4,10 +4,16 @@
 (defpackage :sudoku
   (:use :cl)
   (:export
+   :stbl
    ;; functions
    :make-multiple-sudoku-table
    :make-sudoku-mask
    :blank-cells
+   :getcell
+   :setcell
+   :table-dimension
+   :compare-table
+   :count-masked-cells
    :check-sudoku
    :empty-cell-p
    :empty-cell))
