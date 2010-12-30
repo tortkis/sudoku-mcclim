@@ -24,10 +24,6 @@ Usage:
     (asdf:oos 'asdf:load-op 'sudoku-mcclim)
     (sudoku-mcclim:run)
 
-Licence:
-
-  See LICENCE file.
-
 Notes:
 
   * This program uses images included in Gimp: Logos of "Basic I" &
