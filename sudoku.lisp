@@ -43,13 +43,9 @@
 (defun setcell (tbl row col num)
   (setf (aref (stbl-table tbl) row col) num))
 
-(defun table-dimension (tbl d)
-  (declare (ignore d))
-  (stbl-dimension tbl))
-
 (defun compare-table (tbl1 tbl2)
-  (let ((dim (table-dimension tbl1 0)))
-    (and (= dim (table-dimension tbl2 0))
+  (let ((dim (stbl-dimension tbl1)))
+    (and (= dim (stbl-dimension tbl2))
          (= (stbl-nr tbl1) (stbl-nr tbl2))
          (= (stbl-nc tbl1) (stbl-nc tbl2))
          (every #'eval (map 'vector #'eql
@@ -57,57 +53,25 @@
                             (make-array (* dim dim) :displaced-to (stbl-table tbl2)))))))
 
 ;;
-#|
-(defstruct stbl
-  (table "")
-  (nr 3)
-  (nc 3)
-  (dimension 9))
-
-(defun make-sudoku-table (nr nc &optional tbl)
-  "Make a table with the size of (nr x nc)^2"
-  (make-stbl
-   :table (if tbl
-              (if (or (stringp tbl) (eql (type-of tbl) 'stbl))
-                  (map 'string #'(lambda (c) (if (digit-char-p c) c #\0))
-                       (if (stringp tbl) tbl (stbl-table tbl)))
-                  (error "tbl cannot be copied"))
-              (make-string (expt (* nr nc) 2) :initial-element #\0))
-   :nr nr
-   :nc nc
-   :dimension (* nr nc)))
-
-(defun getcell (tbl row col)
-  (digit-char-p (char (stbl-table tbl) (+ (* (stbl-dimension tbl) row) col))))
-
-(defun setcell (tbl row col num)
-  (setf (char (stbl-table tbl) (+ (* (stbl-dimension tbl) row) col))
-        (char (write-to-string num) 0)))
-
-(defun table-dimension (tbl d)
-  (declare (ignore d))
-  (stbl-dimension tbl))
-|#
-;;
 
 (defun num-exists-row (tbl row num)
   (let ((if-exists nil))
-    (dotimes (col (table-dimension tbl 1))
+    (dotimes (col (stbl-dimension tbl))
       (when (eql (getcell tbl row col) num)
         (setf if-exists t)))
     if-exists))
 
 (defun num-exists-col (tbl col num)
   (let ((if-exists nil))
-    (dotimes (row (table-dimension tbl 0))
+    (dotimes (row (stbl-dimension tbl))
       (when (eql (getcell tbl row col) num)
         (setf if-exists t)))
     if-exists))
 
 (defun filter-table (tbl filter-fn)
   (let ((lis '()))
-    (dotimes (r (table-dimension tbl 0))
-      (dotimes (c (table-dimension tbl 1))
+    (dotimes (r (stbl-dimension tbl))
+      (dotimes (c (stbl-dimension tbl))
         (when (funcall filter-fn (getcell tbl r c))
           (push (list r c) lis))))
     lis))
@@ -292,74 +256,19 @@
                                  (rec (random-sort (cdr tbl-lis-new)) (1- count))))))))))
       (rec initial-tbl-lis c))))
 
-;; (defun make-sudoku-table-1 (nr nc &optional initial-tbl-lis)
-;;   "Return a list with a valid sudoku table and partial (incomplete) sudoku tables.
-;;    If initial-tbl-lis is specified, it is used as the initial table,
-;;    starting with the first one."
-;;   (labels
-;;       ((next-fill (tbl-lis)
-;;          ;; tbl-lis item: table idx blk-seq
-;;          (cond ((null tbl-lis) nil)
-;;                (t
-;;                 (let* ((tbl-start-set (car tbl-lis))
-;;                        (tbl-start (first tbl-start-set))
-;;                        (num-blk-next (or (second tbl-start-set)
-;;                                          (caar (possible-placement-all tbl-start)))))
-;;                   (cond ((= 0 (length (blank-cells tbl-start)))
-;;                          tbl-lis)
-;;                         ((null num-blk-next)
-;;                          (next-fill (cdr tbl-lis)))
-;;                         (t (let* ((num (first num-blk-next))
-;;                                   (blk-row (second num-blk-next))
-;;                                   (blk-col (third num-blk-next)))
-;;                              (let ((avail-cell-lis (blank-cells-in-block
-;;                                                     tbl-start blk-row blk-col num))
-;;                                    (tbl-lis-add '()))
-;;                                (dolist (avail-cell avail-cell-lis)
-;;                                  (let ((tbl-new
-;;                                         (fill-uniq-all
-;;                                          (set-cell-in-block
-;;                                           tbl-start blk-row blk-col
-;;                                           (first avail-cell) (second avail-cell) num))))
-;;                                    (when (not (eql (car tbl-new) :failed))
-;;                                      (push (list (car tbl-new) (caar (cadr tbl-new)))
-;;                                            tbl-lis-add))))
-;;                                (next-fill (if tbl-lis-add
-;;                                               (append tbl-lis-add (cdr tbl-lis))
-;;                                               (cdr tbl-lis))))))))))))
-;;     (next-fill (or initial-tbl-lis
-;;                    (list (list (make-sudoku-table nr nc) nil nil))))))
-
-;; (defun make-multiple-sudoku-table (nr nc c &optional initial-tbl)
-;;   "Make a list of c tables of (nr x nc)^2 sudoku, starting with initial-tbl if specified.
-;;    If c is less than 0, make sudoku tables as many as possible."
-;;   (let* ((tbl-uniq-filled (if initial-tbl (fill-uniq-all initial-tbl)))
-;;          (tbl-0 (if tbl-uniq-filled (car tbl-uniq-filled) (make-sudoku-table nr nc)))
-;;          (initial-tbl-lis (list (list tbl-0 (caar (cadr tbl-uniq-filled))))))
-;;     (labels ((rec (tbl-lis count)
-;;                (cond
-;;                  ((= count 0) '())
-;;                  (t (let ((tbl-lis-new (make-sudoku-table-1 nr nc tbl-lis)))
-;;                       (cond
-;;                         ((null tbl-lis-new) '())
-;;                         ((= (length tbl-lis-new) 1) (list (caar tbl-lis-new)))
-;;                         (t (cons (caar tbl-lis-new)
-;;                                  (rec (random-sort (cdr tbl-lis-new)) (1- count))))))))))
-;;       (rec initial-tbl-lis c))))
-
 ;; check
 
 (defun get-col (tbl col)
-  (when (< col (table-dimension tbl 1))
+  (when (< col (stbl-dimension tbl))
     (let ((lis '()))
-      (dotimes (row (table-dimension tbl 0))
+      (dotimes (row (stbl-dimension tbl))
         (push (getcell tbl row col) lis))
       (nreverse lis))))
 
 (defun get-row (tbl row)
-  (when (< row (table-dimension tbl 0))
+  (when (< row (stbl-dimension tbl))
     (let ((lis '()))
-      (dotimes (col (table-dimension tbl 1))
+      (dotimes (col (stbl-dimension tbl))
         (push (getcell tbl row col) lis))
       (nreverse lis))))
 
@@ -398,9 +307,9 @@
    (BLK block-row block-col list-of-duplicated-block-row-col),
    (ROW row list-of-duplicated-row),
    (COL column list-of-duplicated-col)"
-  (let ((nr (stbl-nr tbl)) (nc (stbl-nc tbl)))
-    (if (null tbl)
-        'INVALID
+  (if (null tbl)
+      'INVALID
+      (let ((nr (stbl-nr tbl)) (nc (stbl-nc tbl)))
         (let* ((nmax (* nr nc))
                (fail-rc '())
                (fail-desc '()))
@@ -440,8 +349,8 @@
 
 (defun max-table (tbl)
   (let ((max-num nil))
-    (dotimes (row (table-dimension tbl 0))
-      (dotimes (col (table-dimension tbl 1))
+    (dotimes (row (stbl-dimension tbl))
+      (dotimes (col (stbl-dimension tbl))
         (when (numberp (getcell tbl row col))
           (if (null max-num)
               (setf max-num (getcell tbl row col))
@@ -451,16 +360,16 @@
 (defun count-table (tbl)
   (let* ((max-num (max-table tbl))
          (cnt-lis (when max-num (make-list (1+ max-num) :initial-element 0))))
-    (dotimes (row (table-dimension tbl 0))
-      (dotimes (col (table-dimension tbl 1))
+    (dotimes (row (stbl-dimension tbl))
+      (dotimes (col (stbl-dimension tbl))
         (when (numberp (getcell tbl row col))
           (incf (nth (getcell tbl row col) cnt-lis)))))
     cnt-lis))
               
 (defun count-table-if (filter-fn tbl)
   (let ((cnt 0))
-    (dotimes (row (table-dimension tbl 0))
-      (dotimes (col (table-dimension tbl 1))
+    (dotimes (row (stbl-dimension tbl))
+      (dotimes (col (stbl-dimension tbl))
         (when (funcall filter-fn (getcell tbl row col))
           (incf cnt))))
     cnt))

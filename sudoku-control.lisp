@@ -14,7 +14,7 @@
    (history-pointer :accessor game-history-pointer :initform 0)))
 
 (defmethod size ((s sudoku-game))
-  (* (game-nr s) (game-nc s)))
+  (stbl-dimension (game-table s)))
 
 (defmethod set-cell ((s sudoku-game) row col val)
   (setf (game-history s)
@@ -103,7 +103,7 @@
              :history history)))
     (if (and (numberp level) (numberp nr) (numberp nc)
              (every #'(lambda (x) (and (eql (type-of x) 'stbl)
-                                       (= (table-dimension x 0) (* nr nc))))
+                                       (= (stbl-dimension x) (* nr nc))))
                     (list table ans mask))
              (string-equal (symbol-name (check-sudoku ans)) "CORRECT"))
         s

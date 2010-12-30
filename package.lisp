@@ -11,7 +11,9 @@
    :blank-cells
    :getcell
    :setcell
-   :table-dimension
+   :stbl-nr
+   :stbl-nc
+   :stbl-dimension
    :compare-table
    :count-masked-cells
    :check-sudoku
