@@ -18,6 +18,9 @@
 
 (in-package :sudoku-mcclim)
 
+(defvar *this-file* (load-time-value
+                     (or #.*compile-file-pathname* *load-pathname*)))
+
 ;; auxiliary functions
 
 (defmacro debug-msg (format &rest args)
@@ -71,7 +74,7 @@
   cell-mask-err
   tile-sel)
 
-(defparameter *colors*
+(defparameter *colors-blue*
   (make-colors
    :background (rgb-color #X4682b4)
    :board (rgb-color #X87ceeb)
@@ -86,7 +89,27 @@
    :cell-mask-err +red+
    :tile-sel +blue+))
 
+(defparameter *colors-bw*
+  (make-colors
+   :background +gray95+
+   :board +gray95+
+   :cell-text-open +black+
+   :cell-text-mask +black+
+   :cell-text-memo +black+
+   :cell-open +gray90+
+   :cell-open-sel +gray85+
+   :cell-open-err +magenta+
+   :cell-mask +white+
+   :cell-mask-sel +gray95+
+   :cell-mask-err +red+
+   :tile-sel +gray+))
+
+(defvar *colors* *colors-blue*)
+
 ;; images
+
+(defvar *images-path* (make-pathname :directory (append (pathname-directory *this-file*)
+                                                        '("images"))))
 
 (defvar *tile-themes*
   '(("Number(comic)" "number1" ("number-comic-1" "number-comic-2" "number-comic-3"
@@ -103,14 +126,14 @@
 (defvar *tile-images* nil)
 (defvar *msg-images* nil)
 (defvar *use-tile* t)
-(defvar *selected-tile-theme* "shape1")
+(defvar *selected-tile-theme* "number1")
 
 (defun load-images (theme-name)
   (let ((tile-images '()))
     (dolist (path (directory
                    (merge-pathnames
                     (pathname (format nil "~A/s?-*.xpm" theme-name))
-                    sudoku.system::*images-path*)))
+                    *images-path*)))
       (let ((img-name (pathname-name path)))
         (multiple-value-bind (array design)
             (climi::xpm-parse-file path)
@@ -126,7 +149,7 @@
                                    :directory `(:relative "messages")
                                    :name msg-name
                                    :type "xpm")
-                                  sudoku.system::*images-path*))
+                                  *images-path*))
         (push (list msg-name array design) msg-images)))
     msg-images))
 
@@ -226,7 +249,7 @@
                                  :display-time nil)))
   (:layouts
    (default
-       (vertically (:height (+ (* *board-margin* 3)
+       (vertically (:height (+ (* *board-margin* 4)
                                *board-size*
                                (* (/ 1 4) *board-size*)
                                *info-height*)
@@ -367,7 +390,7 @@
 (defun make-tile (val)
   (let* ((cell-size (/ *board-size* (size (car (rec-playing *game-record*)))))
          (x (+ *board-margin*  (* (1- val) cell-size)))
-         (y (+ (* 2 *board-margin*) *board-size*
+         (y (+ (* 3 *board-margin*) *board-size*
                (/ *board-size* 4 2) (- (/ cell-size 2)))))
     (with-output-as-presentation
         (*standard-output* (make-instance 'tile :val val :x x :y y) 'tile)
@@ -407,8 +430,17 @@
             (draw-rectangle* stream
                              0 0
                              (+ (* 2 *board-margin*) *board-size*)
-                             (+ (* 3/2 *board-margin*) *board-size*)
+                             (+ (* 2 *board-margin*) *board-size*)
                              :filled t :ink (colors-board *colors*))
+            (draw-rectangle* stream
+                             0
+                             (+ (* 2 *board-margin*) *board-size*)
+                             (+ (* 2 *board-margin*) *board-size*)
+                             (+ (* *board-margin* 4)
+                                *board-size*
+                                (* (/ 1 4) *board-size*)
+                                *info-height*)
+                             :filled t :ink (colors-cell-mask *colors*))
             (dotimes (i (1+ (size game)))
               (let ((x1 *board-margin*)
                     (x2 (+ *board-margin* (* i cell-size)))
@@ -417,7 +449,7 @@
                     (th-v (if (zerop (mod i (game-nc game))) 5 1)))
                 (draw-line* stream x1 x2 x3 x2 :line-thickness th-h)
                 (draw-line* stream x2 x1 x2 x3 :line-thickness th-v)))
-            (with-translation (stream 0 (+ *board-margin*
+            (with-translation (stream 0 (+ (* 2 *board-margin*)
                                            ;;(* (size game) cell-size)
                                            ;;(/ *board-size* 4 2)
                                            (* *board-size* (+ 1 (/ 1 4 2)))
@@ -647,6 +679,13 @@
       (erase-all-outputs)
       (com-start))))
 
+(define-sudoku-frame-command com-color
+    ((color 'string :default "blue" :prompt "Color"))
+  (cond ((equal color "bw") (setf *colors* *colors-bw*))
+        (t (setf *colors* *colors-blue*)))
+  (display-sudoku-board *sudoku-frame* (get-frame-pane *sudoku-frame* 'sudoku-pane))
+  (com-redraw))
+
 (define-sudoku-frame-command com-level-easy () (com-level 1/3))
 (define-sudoku-frame-command com-level-medium () (com-level 0.5))
 (define-sudoku-frame-command com-level-difficult () (com-level 51/81))
@@ -720,15 +759,23 @@
                             ("Create 10 New Games" :command (com-create 10))
                             ("Quit" :command com-quit-frame)))
 
+
+(make-command-table 'color-command-table
+                    :errorp nil
+                    :menu '(("Blue" :command (com-color "blue"))
+                            ("B&W" :command (com-color "bw"))))
+
 (make-command-table 'menubar-command-table
                     :errorp nil
                     :menu '(("Game" :menu game-command-table)
                             ("Size" :menu size-command-table)
                             ("Level" :menu level-command-table)
                             ("Style" :menu style-command-table)
+                            ("Color" :menu color-command-table)
                             ("Check" :command com-check)
                             ("Undo" :command com-undo)
                             ("Redo" :command com-redo)))
+
 
 (defmethod handle-event ((pane sudoku-board-pane) (event keyboard-event))
   (let* ((game (car (rec-playing *game-record*)))
