@@ -16,6 +16,27 @@
 ;;; You should have received a copy of the GNU General Public License
 ;;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+(in-package :cl-user)
+
+(defpackage :sudoku
+  (:use :cl)
+  (:export
+   :stbl
+   ;; functions
+   :make-multiple-sudoku-table
+   :make-sudoku-mask
+   :blank-cells
+   :getcell
+   :setcell
+   :stbl-nr
+   :stbl-nc
+   :stbl-dimension
+   :compare-table
+   :count-masked-cells
+   :check-sudoku
+   :empty-cell-p
+   :empty-cell))
+
 (in-package :sudoku)
   
 (defconstant empty-cell 0)

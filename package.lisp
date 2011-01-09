@@ -1,27 +1,8 @@
 
 (in-package :cl-user)
 
-(defpackage :sudoku
-  (:use :cl)
-  (:export
-   :stbl
-   ;; functions
-   :make-multiple-sudoku-table
-   :make-sudoku-mask
-   :blank-cells
-   :getcell
-   :setcell
-   :stbl-nr
-   :stbl-nc
-   :stbl-dimension
-   :compare-table
-   :count-masked-cells
-   :check-sudoku
-   :empty-cell-p
-   :empty-cell))
-
 (defpackage :sudoku-control
-  (:use :cl :sudoku :sudoku.system)
+  (:use :cl :sudoku)
   (:export
    ;; classes, methods, functions
    :sudoku-game
@@ -65,7 +46,7 @@
 
 (defpackage :sudoku-mcclim
   (:use :clim :clim-lisp :clim-internals
-        :sudoku :sudoku-control :sudoku.system)
+        :sudoku :sudoku-control)
   (:export
    :run
    :add-image))

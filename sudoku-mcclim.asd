@@ -1,20 +1,18 @@
 
 (in-package :cl-user)
 
-(defpackage :sudoku.system
-  (:use :cl :asdf)
-  (:export
-   :*images-path*))
+(defpackage :sudoku-mcclim-asd
+  (:use :cl :asdf))
 
-(in-package :sudoku.system)
+(in-package :sudoku-mcclim-asd)
 
 (defsystem :sudoku-mcclim
-  :depends-on (:mcclim)
-  :author "Toru Takaishi <torutakaishi@comcast.net>"
+  :name "sudoku-mcclim"
+  :author "Toru Takaishi <tortkis@mtlhc.com>"
   :version "0.1"
+  :depends-on (:mcclim
+               :sudoku)
   :components ((:file "package")
-               (:file "sudoku" :depends-on ("package"))
-               (:file "sudoku-control" :depends-on ("package" "sudoku"))
-               (:file "sudoku-ui-mcclim" :depends-on ("package" "sudoku" "sudoku-control"))))
+               (:file "sudoku-control" :depends-on ("package"))
+               (:file "sudoku-ui-mcclim" :depends-on ("package" "sudoku-control"))))
 
-(defvar *images-path* (asdf:system-relative-pathname 'sudoku-mcclim "images/"))
