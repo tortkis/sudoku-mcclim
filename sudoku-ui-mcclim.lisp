@@ -108,8 +108,10 @@
 
 ;; images
 
-(defvar *images-path* (make-pathname :directory (append (pathname-directory *this-file*)
-                                                        '("images"))))
+;;(defvar *images-path* (make-pathname :directory (append (pathname-directory *this-file*)
+;;                                                        '("images"))))
+(defvar *images-path* (merge-pathnames #p"images/" *this-file*))
+
 
 (defvar *tile-themes*
   '(("Number(comic)" "number1" ("number-comic-1" "number-comic-2" "number-comic-3"
@@ -132,7 +134,7 @@
   (let ((tile-images '()))
     (dolist (path (directory
                    (merge-pathnames
-                    (pathname (format nil "~A/s?-*.xpm" theme-name))
+                    (pathname (format nil "~A/s*-*.xpm" theme-name))
                     *images-path*)))
       (let ((img-name (pathname-name path)))
         (multiple-value-bind (array design)
